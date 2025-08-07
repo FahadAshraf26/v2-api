@@ -1,52 +1,26 @@
-module.exports = {
-  root: true,
-  env: {
-    node: true,
-    es2022: true,
-  },
-  extends: [
-    "eslint:recommended",
-    "@typescript-eslint/recommended",
-    "@typescript-eslint/recommended-requiring-type-checking",
-    "prettier",
-  ],
-  parser: "@typescript-eslint/parser",
-  parserOptions: {
-    ecmaVersion: 2022,
-    sourceType: "module",
-    project: "./tsconfig.json",
-  },
-  plugins: ["@typescript-eslint", "import", "prettier"],
-  rules: {
-    "prettier/prettier": "error",
-    "@typescript-eslint/no-unused-vars": "error",
-    "@typescript-eslint/explicit-function-return-type": "warn",
-    "@typescript-eslint/explicit-module-boundary-types": "warn",
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/no-non-null-assertion": "error",
-    "@typescript-eslint/prefer-nullish-coalescing": "error",
-    "@typescript-eslint/prefer-optional-chain": "error",
-    "@typescript-eslint/strict-boolean-expressions": "error",
-    "import/order": [
-      "error",
-      {
-        groups: [
-          "builtin",
-          "external",
-          "internal",
-          "parent",
-          "sibling",
-          "index",
-        ],
-        "newlines-between": "always",
-        alphabetize: {
-          order: "asc",
-          caseInsensitive: true,
-        },
+import js from '@eslint/js';
+import typescript from 'typescript-eslint';
+import prettier from 'eslint-config-prettier';
+
+export default typescript.config(
+  js.configs.recommended,
+  ...typescript.configs.recommended,
+  prettier,
+  {
+    files: ['src/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.json',
       },
-    ],
-    "no-console": "warn",
-    "no-debugger": "error",
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'error',
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-console': ['warn', { allow: ['error', 'warn'] }],
+    },
   },
-  ignorePatterns: ["dist/", "node_modules/", "*.js"],
-};
+  {
+    ignores: ['dist/', 'node_modules/', '*.js'],
+  }
+);

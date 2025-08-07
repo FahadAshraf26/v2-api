@@ -1,13 +1,15 @@
 import { Sequelize } from 'sequelize';
-import { injectable } from 'tsyringe';
+import { inject, injectable } from 'tsyringe';
 import { Result, Ok, Err } from 'oxide.ts';
-
 import { config } from '@/config/app';
+import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { initializeModels } from '@/infrastructure/database/models';
 
 @injectable()
 export class DatabaseService {
   private sequelize: Sequelize | null = null;
+
+  constructor(@inject(LoggerService) private readonly logger: LoggerService) {}
 
   async connect(): Promise<Result<void, Error>> {
     try {
@@ -24,30 +26,32 @@ export class DatabaseService {
           acquire: config.DB_POOL_ACQUIRE,
           idle: config.DB_POOL_IDLE,
         },
-        logging: config.NODE_ENV === 'development' ? console.log : false,
+        logging:
+          config.NODE_ENV === 'development'
+            ? msg => this.logger.debug('Sequelize', { query: msg })
+            : false,
         dialectOptions: {
           charset: 'utf8mb4',
-          collate: 'utf8mb4_unicode_ci',
         },
         define: {
           timestamps: true,
           underscored: true,
-          paranoid: true, // Soft deletes
+          paranoid: true,
         },
       });
 
       await this.sequelize.authenticate();
 
-      // Initialize models
       initializeModels(this.sequelize);
 
-      // Sync database (only in development)
-      if (config.NODE_ENV === 'development') {
-        await this.sequelize.sync({ alter: true });
-      }
+      // if (config.NODE_ENV === 'development') {
+      //   await this.sequelize.sync({ alter: true });
+      //   this.logger.info('Database synced');
+      // }
 
       return Ok(undefined);
     } catch (error) {
+      this.logger.error('Database connection failed', error as Error);
       return Err(error as Error);
     }
   }

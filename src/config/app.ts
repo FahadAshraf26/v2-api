@@ -1,4 +1,23 @@
 import { z } from 'zod';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables BEFORE parsing
+const envFile =
+  process.env['NODE_ENV'] === 'production'
+    ? '.env.production'
+    : process.env['NODE_ENV'] === 'test'
+      ? '.env.test'
+      : '.env';
+
+dotenv.config({
+  path: path.resolve(process.cwd(), envFile),
+});
+
+if (!process.env['ENV_LOADED']) {
+  require('dotenv').config();
+  process.env['ENV_LOADED'] = 'true';
+}
 
 const envSchema = z.object({
   NODE_ENV: z
@@ -10,6 +29,7 @@ const envSchema = z.object({
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
     .default('info'),
   CORS_ORIGIN: z.string().default('*'),
+  ORM_TYPE: z.enum(['sequelize', 'typeorm', 'prisma']).default('sequelize'),
 
   // Database
   DB_HOST: z.string().default('localhost'),

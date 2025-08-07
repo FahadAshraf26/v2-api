@@ -1,16 +1,19 @@
 import { createClient, RedisClientType } from 'redis';
-import { injectable } from 'tsyringe';
+import { inject, injectable } from 'tsyringe';
 import { Result, Ok, Err } from 'oxide.ts';
-
 import { config } from '@/config/app';
+import { LoggerService } from '@/infrastructure/logging/logger.service';
+import { RedisConfig } from '@/shared/types/redis-config';
 
 @injectable()
 export class CacheService {
   private client: RedisClientType | null = null;
 
+  constructor(@inject(LoggerService) private readonly logger: LoggerService) {}
+
   async connect(): Promise<Result<void, Error>> {
     try {
-      const clientConfig: any = {
+      const clientConfig: RedisConfig = {
         socket: {
           host: config.REDIS_HOST,
           port: config.REDIS_PORT,
@@ -26,12 +29,13 @@ export class CacheService {
       this.client = createClient(clientConfig);
 
       this.client.on('error', err => {
-        console.error('Redis Client Error:', err);
+        this.logger.error('Redis Client Error', err);
       });
 
       await this.client.connect();
       return Ok(undefined);
     } catch (error) {
+      this.logger.error('Failed to connect to Redis', error as Error);
       return Err(error as Error);
     }
   }
