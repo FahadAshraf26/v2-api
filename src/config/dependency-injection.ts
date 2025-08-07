@@ -4,11 +4,6 @@ export const TOKENS = {
 
   UserRepositoryToken: Symbol.for('UserRepository'),
   UserServiceToken: Symbol.for('UserService'),
-
-  CreateUserUseCaseToken: Symbol.for('CreateUserUseCase'),
-  GetUserUseCaseToken: Symbol.for('GetUserUseCase'),
-
-  UserControllerToken: Symbol.for('UserController'),
 } as const;
 
 export const setupDependencyInjection = async (): Promise<void> => {
