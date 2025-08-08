@@ -3,7 +3,7 @@ import { inject, injectable } from 'tsyringe';
 import { Result, Ok, Err } from 'oxide.ts';
 import { config } from '@/config/app';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { RedisConfig } from '@/shared/types/redis-config';
+import { RedisConfig } from '@/types/cache-service';
 
 @injectable()
 export class CacheService {

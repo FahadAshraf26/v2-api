@@ -1,7 +1,5 @@
-// src/server.ts
 import 'reflect-metadata';
 
-// Load environment variables ONCE at the very beginning
 if (!process.env['ENV_LOADED']) {
   require('dotenv').config();
   process.env['ENV_LOADED'] = 'true';
@@ -10,10 +8,14 @@ if (!process.env['ENV_LOADED']) {
 import Fastify, { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 import { config } from '@/config/app';
-import { setupDependencyInjection } from '@/config/dependency-injection';
+import {
+  setupDependencyInjection,
+  TOKENS,
+} from '@/config/dependency-injection';
 import { DatabaseService } from '@/infrastructure/database/database.service';
 import { CacheService } from '@/infrastructure/cache/cache.service';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
+import { ModelRegistryService } from '@/infrastructure/database/model-registry.service';
 import { errorHandler } from '@/shared/errors/error-handler';
 
 async function initializeServices(logger: LoggerService): Promise<{
@@ -22,9 +24,10 @@ async function initializeServices(logger: LoggerService): Promise<{
 }> {
   logger.info('🔧 Initializing services...');
 
-  // Initialize Database
   logger.info('📊 Connecting to database...');
-  const databaseService = container.resolve(DatabaseService);
+  const databaseService = container.resolve<DatabaseService>(
+    TOKENS.DatabaseServiceToken
+  );
   const dbResult = await databaseService.connect();
 
   if (dbResult.isErr()) {
@@ -33,11 +36,26 @@ async function initializeServices(logger: LoggerService): Promise<{
   }
   logger.info('✅ Database connected successfully');
 
-  // Initialize Cache (Redis) - Optional, don't fail if not available
+  logger.info('📋 Registering model schemas...');
+  const modelRegistry = container.resolve<ModelRegistryService>(
+    TOKENS.ModelRegistryServiceToken
+  );
+  await modelRegistry.registerAllModels();
+  logger.info('✅ Model schemas registered successfully');
+
+  // Sync database after models are registered
+  logger.info('🔄 Syncing database schema...');
+  const syncResult = await databaseService.sync();
+  if (syncResult.isErr()) {
+    logger.error('❌ Database sync failed');
+    throw syncResult.unwrapErr();
+  }
+  logger.info('✅ Database schema synced successfully');
+
   let cacheService: CacheService | null = null;
   try {
     logger.info('💾 Connecting to Redis cache...');
-    cacheService = container.resolve(CacheService);
+    cacheService = container.resolve<CacheService>(TOKENS.CacheServiceToken);
     const cacheResult = await cacheService.connect();
 
     if (cacheResult.isErr()) {
@@ -49,31 +67,32 @@ async function initializeServices(logger: LoggerService): Promise<{
     } else {
       logger.info('✅ Redis cache connected successfully');
     }
-  } catch (cacheError) {
+  } catch (error) {
     logger.warn(
-      '⚠️  Cache service initialization failed, continuing without cache',
-      cacheError as Error
+      '⚠️  Redis initialization failed, continuing without cache',
+      error as Error
     );
     cacheService = null;
   }
 
-  logger.info('✅ All services initialized');
+  logger.info('✅ All services initialized successfully');
 
-  return { databaseService, cacheService };
+  return {
+    databaseService,
+    cacheService,
+  };
 }
 
 async function createApp(logger: LoggerService): Promise<FastifyInstance> {
   logger.info('🏗️  Building Fastify application...');
 
-  // Create Fastify instance with DISABLED internal logging to prevent duplicates
   const app = Fastify({
-    logger: false, // Disable Fastify's internal logger to prevent duplicate logs
+    logger: false,
     disableRequestLogging: true,
     requestIdLogLabel: 'requestId',
     requestIdHeader: 'x-request-id',
   });
 
-  // Register security plugins
   logger.info('🔒 Registering security plugins...');
   const helmetOptions: any = {};
   if (config.NODE_ENV !== 'production') {
@@ -92,7 +111,6 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
   });
   logger.info('✅ Security plugins registered');
 
-  // Register Swagger documentation
   logger.info('📚 Setting up API documentation...');
   await app.register(import('@fastify/swagger'), {
     swagger: {
@@ -105,9 +123,24 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
       schemes: ['http', 'https'],
       consumes: ['application/json'],
       produces: ['application/json'],
+      securityDefinitions: {
+        bearerAuth: {
+          type: 'apiKey',
+          name: 'x-auth-token',
+          in: 'header',
+          description: 'Bearer token for authentication',
+        },
+      },
       tags: [
         { name: 'Health', description: 'Health check endpoints' },
-        // Add more tags as you add more routes
+        {
+          name: 'Dashboard Campaign Info',
+          description: 'Dashboard campaign information management',
+        },
+        {
+          name: 'Dashboard Campaign Info - Admin',
+          description: 'Admin operations for dashboard campaign info',
+        },
       ],
     },
   });
@@ -124,17 +157,14 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
   });
   logger.info('✅ API documentation configured');
 
-  // Set global error handler
   app.setErrorHandler(errorHandler);
 
-  // Register application routes
   logger.info('🛣️  Registering application routes...');
   await app.register(import('./presentation/routes'), {
     prefix: '/api/v2',
   });
   logger.info('✅ Routes registered');
 
-  // Register health check endpoint
   app.get(
     '/health',
     {
@@ -164,12 +194,16 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
       },
     },
     async () => {
-      const databaseService = container.resolve(DatabaseService);
+      const databaseService = container.resolve<DatabaseService>(
+        TOKENS.DatabaseServiceToken
+      );
       let cacheService: CacheService | null = null;
       let cacheHealthy = false;
 
       try {
-        cacheService = container.resolve(CacheService);
+        cacheService = container.resolve<CacheService>(
+          TOKENS.CacheServiceToken
+        );
         cacheHealthy = await cacheService.healthCheck();
       } catch {
         // Cache service not available
@@ -206,12 +240,10 @@ function setupGracefulShutdown(
     logger.info(`📛 ${signal} received, starting graceful shutdown...`);
 
     try {
-      // Close server to stop accepting new connections
       logger.info('🔌 Closing server connections...');
       await app.close();
       logger.info('✅ Server connections closed');
 
-      // Disconnect database
       logger.info('📊 Disconnecting database...');
       await services.databaseService.disconnect();
       logger.info('✅ Database disconnected');
@@ -231,11 +263,9 @@ function setupGracefulShutdown(
     }
   };
 
-  // Register shutdown handlers
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-  // Handle uncaught errors
   process.on('uncaughtException', error => {
     logger.fatal('❌ Uncaught Exception', error);
     gracefulShutdown('UNCAUGHT_EXCEPTION');
@@ -254,10 +284,8 @@ async function bootstrap(): Promise<void> {
   console.log(`🔧 Node Version: ${process.version}`);
   console.log('----------------------------------------');
 
-  // Setup dependency injection
   await setupDependencyInjection();
 
-  // Get logger instance
   const logger = container.resolve(LoggerService);
   logger.info('🚀 Starting Honeycomb API V2');
   logger.info(`Environment: ${config.NODE_ENV}`);
@@ -265,23 +293,18 @@ async function bootstrap(): Promise<void> {
   logger.info(`Process ID: ${process.pid}`);
 
   try {
-    // Step 1: Initialize all services (Database, Cache, etc.)
     const services = await initializeServices(logger);
 
-    // Step 2: Create and configure Fastify app
     const app = await createApp(logger);
 
-    // Step 3: Setup graceful shutdown handlers
     setupGracefulShutdown(app, services, logger);
 
-    // Step 4: Start listening for requests
     logger.info('🌐 Starting HTTP server...');
     await app.listen({
       port: config.PORT,
       host: config.HOST,
     });
 
-    // Step 5: Log successful startup
     console.log('----------------------------------------');
     console.log('✅ Server started successfully!');
     console.log('----------------------------------------');
@@ -293,7 +316,6 @@ async function bootstrap(): Promise<void> {
     logger.info(`🏥 Health: http://${config.HOST}:${config.PORT}/health`);
     logger.info('════════════════════════════════════════');
 
-    // Log memory usage
     const memoryUsage = process.memoryUsage();
     logger.info('💾 Memory Usage:', {
       rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
@@ -311,11 +333,16 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-// Start the application
-bootstrap().catch(error => {
-  console.error('💥 Fatal error during bootstrap:', error);
-  process.exit(1);
-});
+// Export functions for testing
+export { createApp, initializeServices };
 
-// Export for testing purposes
-export { bootstrap, createApp, initializeServices };
+// Only run bootstrap if this file is executed directly (not imported)
+if (require.main === module) {
+  bootstrap().catch(error => {
+    console.error('💥 Fatal error during bootstrap:', error);
+    // Don't exit process in test environment to avoid breaking tests
+    if (process.env['NODE_ENV'] !== 'test') {
+      process.exit(1);
+    }
+  });
+}

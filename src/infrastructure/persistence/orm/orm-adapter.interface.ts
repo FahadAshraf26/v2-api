@@ -1,4 +1,25 @@
-import { IQueryBuilder } from '../query-builder/query-builder.interface';
+import { IQueryBuilder } from '@/infrastructure/persistence/query-builder/query-builder.interface';
+
+export interface AssociationDefinition {
+  type: 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany';
+  target: string;
+  options: {
+    foreignKey?: string;
+    sourceKey?: string;
+    targetKey?: string;
+    as?: string;
+    through?: string;
+    [key: string]: any;
+  };
+}
+
+export interface ModelSchema {
+  name: string;
+  tableName: string;
+  attributes: Record<string, any>;
+  options?: Record<string, any>;
+  associations?: Record<string, AssociationDefinition>;
+}
 
 export interface IORMAdapter {
   createQueryBuilder<T>(modelName: string): IQueryBuilder<T>;
@@ -14,6 +35,7 @@ export interface IORMAdapter {
   findByPk<T>(modelName: string, id: string, options?: any): Promise<T | null>;
   transaction<T>(callback: (transaction: any) => Promise<T>): Promise<T>;
   getModel(modelName: string): any;
+  registerSchema(schema: ModelSchema): void;
 }
 
 export interface ITransaction {

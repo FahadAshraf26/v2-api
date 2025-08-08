@@ -1,7 +1,6 @@
-import { inject, injectable } from 'tsyringe';
+import { inject } from 'tsyringe';
 import { Result, Ok, Err } from 'oxide.ts';
 import {
-  IBaseRepository,
   IPaginatedRepository,
   FindOneCriteria,
   FindManyCriteria,
@@ -15,7 +14,6 @@ import type { IQueryBuilder } from '@/infrastructure/persistence/query-builder/q
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { EventBus } from '@/infrastructure/events/event-bus';
 import { TOKENS } from '@/config/dependency-injection';
-import type { DomainEvent } from '@/domain/core/domain-event';
 import type { WhereCondition } from '@/domain/core/repository.interface';
 
 export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
