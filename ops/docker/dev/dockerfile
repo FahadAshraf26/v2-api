@@ -1,0 +1,50 @@
+FROM node:22-alpine AS base
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Install dependencies for better compatibility
+# python3, make, g++ are needed for node-gyp to compile native modules
+# netcat-openbsd is for checking database connection
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    netcat-openbsd
+
+# Copy package files first for better layer caching
+COPY package.json pnpm-lock.yaml ./
+
+# Install all dependencies (including devDependencies for development)
+RUN pnpm install --frozen-lockfile
+
+# Copy the rest of the application
+COPY . .
+
+# Create a wait-for script to check database availability
+RUN echo '#!/bin/sh' > /wait-for-db.sh && \
+    echo 'set -e' >> /wait-for-db.sh && \
+    echo '' >> /wait-for-db.sh && \
+    echo 'host="$1"' >> /wait-for-db.sh && \
+    echo 'shift' >> /wait-for-db.sh && \
+    echo 'cmd="$@"' >> /wait-for-db.sh && \
+    echo '' >> /wait-for-db.sh && \
+    echo 'until nc -z -v -w30 $host 3306' >> /wait-for-db.sh && \
+    echo 'do' >> /wait-for-db.sh && \
+    echo '  echo "Waiting for database connection at $host:3306..."' >> /wait-for-db.sh && \
+    echo '  sleep 2' >> /wait-for-db.sh && \
+    echo 'done' >> /wait-for-db.sh && \
+    echo '' >> /wait-for-db.sh && \
+    echo 'echo "Database is up - executing command"' >> /wait-for-db.sh && \
+    echo 'exec $cmd' >> /wait-for-db.sh && \
+    chmod +x /wait-for-db.sh
+
+# Expose port
+EXPOSE 8082
+
+# Set environment
+ENV NODE_ENV=development
+
+# Wait for database then start the app
+CMD ["/wait-for-db.sh", "mysql", "pnpm", "run", "dev"]"]
