@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/husky.sh"
+
+# Run lint-staged for code quality checks
+echo "🔍 Running pre-commit checks..."
+npx lint-staged

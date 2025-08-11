@@ -9,5 +9,25 @@
   "arrowParens": "avoid",
   "bracketSpacing": true,
   "bracketSameLine": false,
-  "quoteProps": "as-needed"
+  "quoteProps": "as-needed",
+  "plugins": ["@trivago/prettier-plugin-sort-imports"],
+  "importOrder": [
+    "^reflect-metadata$",
+    "^dotenv",
+    "<THIRD_PARTY_MODULES>",
+    "^@fastify/(.*)$",
+    "^@/config/(.*)$",
+    "^@/domain/(.*)$",
+    "^@/application/(.*)$",
+    "^@/infrastructure/(.*)$",
+    "^@/presentation/(.*)$",
+    "^@/shared/(.*)$",
+    "^@/types/(.*)$",
+    "^@/(.*)$",
+    "^[./]"
+  ],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true,
+  "importOrderGroupNamespaceSpecifiers": true,
+  "importOrderCaseInsensitive": true
 }
