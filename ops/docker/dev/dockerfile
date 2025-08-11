@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install dependencies for better compatibility
 # python3, make, g++ are needed for node-gyp to compile native modules
-# netcat-openbsd is for checking database connection
+# netcat for checking connections
 RUN apk add --no-cache \
     python3 \
     make \
@@ -22,23 +22,45 @@ RUN pnpm install --frozen-lockfile
 # Copy the rest of the application
 COPY . .
 
-# Create a wait-for script to check database availability
-RUN echo '#!/bin/sh' > /wait-for-db.sh && \
-    echo 'set -e' >> /wait-for-db.sh && \
-    echo '' >> /wait-for-db.sh && \
-    echo 'host="$1"' >> /wait-for-db.sh && \
-    echo 'shift' >> /wait-for-db.sh && \
-    echo 'cmd="$@"' >> /wait-for-db.sh && \
-    echo '' >> /wait-for-db.sh && \
-    echo 'until nc -z -v -w30 $host 3306' >> /wait-for-db.sh && \
-    echo 'do' >> /wait-for-db.sh && \
-    echo '  echo "Waiting for database connection at $host:3306..."' >> /wait-for-db.sh && \
-    echo '  sleep 2' >> /wait-for-db.sh && \
-    echo 'done' >> /wait-for-db.sh && \
-    echo '' >> /wait-for-db.sh && \
-    echo 'echo "Database is up - executing command"' >> /wait-for-db.sh && \
-    echo 'exec $cmd' >> /wait-for-db.sh && \
-    chmod +x /wait-for-db.sh
+# Create a simple wait script using netcat
+RUN cat > /wait-for-mysql.sh <<'EOF'
+#!/bin/sh
+set -e
+
+host="$1"
+shift
+cmd="$@"
+
+echo "Waiting for MySQL at $host:3306..."
+
+# Wait up to 60 seconds for MySQL to be ready
+attempts=0
+max_attempts=60
+
+while [ $attempts -lt $max_attempts ]; do
+  attempts=$((attempts + 1))
+
+  if nc -z -w1 "$host" 3306 2>/dev/null; then
+    echo "MySQL is ready!"
+    echo "Waiting 5 more seconds for full initialization..."
+    sleep 5
+    break
+  fi
+
+  echo "Waiting for MySQL... ($attempts/$max_attempts)"
+  sleep 1
+done
+
+if [ $attempts -eq $max_attempts ]; then
+  echo "ERROR: MySQL failed to start after $max_attempts seconds"
+  exit 1
+fi
+
+echo "Starting application..."
+exec $cmd
+EOF
+
+RUN chmod +x /wait-for-mysql.sh
 
 # Expose port
 EXPOSE 8082
@@ -47,4 +69,4 @@ EXPOSE 8082
 ENV NODE_ENV=development
 
 # Wait for database then start the app
-CMD ["/wait-for-db.sh", "mysql", "pnpm", "run", "dev"]"]
+CMD ["/wait-for-mysql.sh", "mysql", "pnpm", "run", "dev"]
