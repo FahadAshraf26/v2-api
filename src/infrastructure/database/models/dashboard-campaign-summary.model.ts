@@ -1,12 +1,12 @@
 import { DataTypes } from '@/infrastructure/persistence/orm/base-orm-model';
 
 /**
- * ORM-agnostic model schema definition for Dashboard Campaign Info
+ * ORM-agnostic model schema definition for Dashboard Campaign Summary
  * Contains only business data - approval workflow handled by separate DashboardApprovals table
  */
-export const DashboardCampaignInfoSchema = {
-  name: 'DashboardCampaignInfo',
-  tableName: 'dashboardCampaignInfo',
+export const DashboardCampaignSummarySchema = {
+  name: 'DashboardCampaignSummary',
+  tableName: 'dashboardCampaignSummary',
 
   attributes: {
     id: {
@@ -20,28 +20,16 @@ export const DashboardCampaignInfoSchema = {
       allowNull: false,
     },
 
-    // Business data fields
-    milestones: {
+    summary: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
 
-    investorPitch: {
+    tagLine: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
 
-    isShowPitch: {
-      type: DataTypes.BOOLEAN,
-      allowNull: true,
-    },
-
-    investorPitchTitle: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-
-    // Standard timestamps
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -72,7 +60,6 @@ export const DashboardCampaignInfoSchema = {
         onUpdate: 'CASCADE',
       },
     },
-    // One-to-one relationship with dashboard approval
     DashboardApproval: {
       type: 'hasOne',
       target: 'DashboardApprovals',
@@ -81,7 +68,7 @@ export const DashboardCampaignInfoSchema = {
         sourceKey: 'id',
         as: 'approval',
         scope: {
-          entityType: 'dashboard-campaign-info',
+          entityType: 'dashboard-campaign-summary',
         },
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',

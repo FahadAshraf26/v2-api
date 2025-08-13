@@ -1,8 +1,8 @@
 import {
-  NotFoundError,
   ConflictError,
-  ValidationError,
+  NotFoundError,
   UnauthorizedError,
+  ValidationError,
 } from '@/domain/errors/base-errors';
 
 export class DashboardCampaignInfoNotFoundError extends NotFoundError {
@@ -17,7 +17,7 @@ export class DashboardCampaignInfoAlreadyExistsError extends ConflictError {
   readonly code = 'DASHBOARD_CAMPAIGN_INFO_ALREADY_EXISTS';
 
   constructor(campaignId: string) {
-    super(`Dashboard campaign info for campaign ${campaignId} already exists`);
+    super(`Dashboard campaign info already exists for campaign ${campaignId}`);
   }
 }
 
@@ -33,7 +33,9 @@ export class DashboardCampaignInfoValidationError extends ValidationError {
 export class UnauthorizedToEditError extends UnauthorizedError {
   readonly code = 'UNAUTHORIZED_TO_EDIT';
 
-  constructor() {
-    super('You are not authorized to edit this campaign info');
+  constructor(userId: string, infoId: string) {
+    super(
+      `User ${userId} is not authorized to edit dashboard campaign info ${infoId}`
+    );
   }
 }

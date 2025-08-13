@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { container } from 'tsyringe';
 
-import { DashboardCampaignInfoController } from '@/presentation/controllers/dashboard-campaign-info.controller';
+import { DashboardCampaignSummaryController } from '@/presentation/controllers/dashboard-campaign-summary.controller';
 
 import {
   authenticateAdmin,
@@ -10,30 +10,30 @@ import {
 } from '@/shared/utils/middleware/auth.middleware';
 
 import {
-  createDashboardCampaignInfoSchema,
-  dashboardCampaignInfoSchema,
+  createDashboardCampaignSummarySchema,
+  dashboardCampaignSummarySchema,
   errorSchema,
   listResponseSchema,
-  reviewDashboardCampaignInfoSchema,
+  reviewDashboardCampaignSummarySchema,
   successResponseSchema,
-  updateDashboardCampaignInfoSchema,
-} from '@/types/dashboard-campaign-info';
+  updateDashboardCampaignSummarySchema,
+} from '@/types/dashboard-campaign-summary';
 
-export default async function dashboardCampaignInfoRoutes(
+export default async function dashboardCampaignSummaryRoutes(
   fastify: FastifyInstance,
   options: FastifyPluginOptions
 ): Promise<void> {
-  const controller = container.resolve(DashboardCampaignInfoController);
+  const controller = container.resolve(DashboardCampaignSummaryController);
 
   fastify.post(
     '/',
     {
       preHandler: authenticateUser,
       schema: {
-        description: 'Create new dashboard campaign info',
-        tags: ['Dashboard Campaign Info'],
+        description: 'Create new dashboard campaign summary',
+        tags: ['Dashboard Campaign Summary'],
         security: [{ bearerAuth: [] }],
-        body: createDashboardCampaignInfoSchema,
+        body: createDashboardCampaignSummarySchema,
         response: {
           201: successResponseSchema,
           400: errorSchema,
@@ -52,8 +52,8 @@ export default async function dashboardCampaignInfoRoutes(
       preHandler: authenticateUser,
       schema: {
         description:
-          'Update dashboard campaign info (only if pending or rejected)',
-        tags: ['Dashboard Campaign Info'],
+          'Update dashboard campaign summary (only if pending or rejected)',
+        tags: ['Dashboard Campaign Summary'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -62,7 +62,7 @@ export default async function dashboardCampaignInfoRoutes(
           },
           required: ['id'],
         },
-        body: updateDashboardCampaignInfoSchema,
+        body: updateDashboardCampaignSummarySchema,
         response: {
           200: successResponseSchema,
           400: errorSchema,
@@ -81,8 +81,8 @@ export default async function dashboardCampaignInfoRoutes(
     {
       preHandler: authenticateUser,
       schema: {
-        description: 'Submit dashboard campaign info for admin review',
-        tags: ['Dashboard Campaign Info'],
+        description: 'Submit dashboard campaign summary for admin review',
+        tags: ['Dashboard Campaign Summary'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -110,8 +110,8 @@ export default async function dashboardCampaignInfoRoutes(
       preHandler: authenticateAdmin,
       schema: {
         description:
-          'Review dashboard campaign info (approve or reject) - Admin only',
-        tags: ['Dashboard Campaign Info - Admin'],
+          'Review dashboard campaign summary (approve or reject) - Admin only',
+        tags: ['Dashboard Campaign Summary - Admin'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -120,7 +120,7 @@ export default async function dashboardCampaignInfoRoutes(
           },
           required: ['id'],
         },
-        body: reviewDashboardCampaignInfoSchema,
+        body: reviewDashboardCampaignSummarySchema,
         response: {
           200: successResponseSchema,
           400: errorSchema,
@@ -138,8 +138,8 @@ export default async function dashboardCampaignInfoRoutes(
     {
       preHandler: authenticateUserOrAdmin,
       schema: {
-        description: 'Get dashboard campaign info by ID',
-        tags: ['Dashboard Campaign Info'],
+        description: 'Get dashboard campaign summary by ID',
+        tags: ['Dashboard Campaign Summary'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -153,7 +153,7 @@ export default async function dashboardCampaignInfoRoutes(
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: dashboardCampaignInfoSchema,
+              data: dashboardCampaignSummarySchema,
             },
           },
           404: errorSchema,
@@ -169,8 +169,8 @@ export default async function dashboardCampaignInfoRoutes(
     {
       preHandler: authenticateUserOrAdmin,
       schema: {
-        description: 'Get dashboard campaign info by campaign ID',
-        tags: ['Dashboard Campaign Info'],
+        description: 'Get dashboard campaign summary by campaign ID',
+        tags: ['Dashboard Campaign Summary'],
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -184,7 +184,7 @@ export default async function dashboardCampaignInfoRoutes(
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: dashboardCampaignInfoSchema,
+              data: dashboardCampaignSummarySchema,
             },
           },
           404: errorSchema,
@@ -201,8 +201,8 @@ export default async function dashboardCampaignInfoRoutes(
       preHandler: authenticateAdmin,
       schema: {
         description:
-          'Get all pending dashboard campaign infos for admin review',
-        tags: ['Dashboard Campaign Info - Admin'],
+          'Get all pending dashboard campaign summaries for admin review',
+        tags: ['Dashboard Campaign Summary - Admin'],
         security: [{ bearerAuth: [] }],
         response: {
           200: listResponseSchema,
@@ -219,8 +219,9 @@ export default async function dashboardCampaignInfoRoutes(
     {
       preHandler: authenticateUser,
       schema: {
-        description: "Get current user's dashboard campaign info submissions",
-        tags: ['Dashboard Campaign Info'],
+        description:
+          "Get current user's dashboard campaign summary submissions",
+        tags: ['Dashboard Campaign Summary'],
         security: [{ bearerAuth: [] }],
         response: {
           200: listResponseSchema,
@@ -230,5 +231,53 @@ export default async function dashboardCampaignInfoRoutes(
       },
     },
     (req, reply) => controller.getMySubmissions(req as any, reply)
+  );
+
+  fastify.get(
+    '/approved',
+    {
+      preHandler: authenticateUserOrAdmin,
+      schema: {
+        description: 'Get all approved dashboard campaign summaries',
+        tags: ['Dashboard Campaign Summary'],
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: listResponseSchema,
+          500: errorSchema,
+        },
+      },
+    },
+    (req, reply) => controller.getApproved(req as any, reply)
+  );
+
+  fastify.get(
+    '/admin/statistics',
+    {
+      preHandler: authenticateAdmin,
+      schema: {
+        description: 'Get dashboard campaign summary statistics - Admin only',
+        tags: ['Dashboard Campaign Summary - Admin'],
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: {
+                type: 'object',
+                properties: {
+                  pending: { type: 'number' },
+                  approved: { type: 'number' },
+                  rejected: { type: 'number' },
+                },
+              },
+            },
+          },
+          403: errorSchema,
+          500: errorSchema,
+        },
+      },
+    },
+    (req, reply) => controller.getStatistics(req as any, reply)
   );
 }

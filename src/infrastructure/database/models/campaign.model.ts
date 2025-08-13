@@ -277,5 +277,16 @@ export const CampaignSchema = {
         onUpdate: 'CASCADE',
       },
     },
+    DashboardCampaignSummary: {
+      type: 'hasOne',
+      target: 'DashboardCampaignSummary',
+      options: {
+        foreignKey: 'campaignId',
+        sourceKey: 'campaignId',
+        as: 'dashboardSummary',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+      },
+    },
   },
 } as const;

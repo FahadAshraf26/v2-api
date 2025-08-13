@@ -41,6 +41,6 @@
       "@/config/*": ["config/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests"],
   "exclude": ["node_modules", "dist", "tests"]
 }

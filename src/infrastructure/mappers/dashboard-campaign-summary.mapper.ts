@@ -1,40 +1,34 @@
 import { injectable } from 'tsyringe';
-import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
+import { DashboardCampaignSummary } from '@/domain/dashboard-campaign-summary/entity/dashboard-campaign-summary.entity';
 import { randomUUID } from 'crypto';
 import {
-  DashboardCampaignInfoModelAttributes,
-  DashboardCampaignInfoProps,
-  DashboardCampaignInfoWithApproval,
-} from '@/types/dashboard-campaign-info';
+  DashboardCampaignSummaryModelAttributes,
+  DashboardCampaignSummaryProps,
+  DashboardCampaignSummaryWithApproval,
+} from '@/types/dashboard-campaign-summary';
 import { DashboardApprovalProps } from '@/types/approval';
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
 @injectable()
-export class DashboardCampaignInfoMapper {
+export class DashboardCampaignSummaryMapper {
   /**
    * Map from joined data (business table + approval table) to domain entity
    */
-  toDomain(data: DashboardCampaignInfoWithApproval): DashboardCampaignInfo {
-    const props: DashboardCampaignInfoProps = {
-      id: data.info.id,
-      campaignId: data.info.campaignId,
+  toDomain(data: DashboardCampaignSummaryWithApproval): DashboardCampaignSummary {
+    const props: DashboardCampaignSummaryProps = {
+      id: data.summary.id,
+      campaignId: data.summary.campaignId,
       status: this.mapApprovalStatus(data.approval?.status),
-      createdAt: data.info.createdAt,
-      updatedAt: data.info.updatedAt,
+      createdAt: data.summary.createdAt,
+      updatedAt: data.summary.updatedAt,
     };
 
     // Add business fields if they exist
-    if (data.info.milestones) {
-      props.milestones = data.info.milestones;
+    if (data.summary.summary) {
+      props.summary = data.summary.summary;
     }
-    if (data.info.investorPitch) {
-      props.investorPitch = data.info.investorPitch;
-    }
-    if (data.info.isShowPitch !== null && data.info.isShowPitch !== undefined) {
-      props.isShowPitch = data.info.isShowPitch;
-    }
-    if (data.info.investorPitchTitle) {
-      props.investorPitchTitle = data.info.investorPitchTitle;
+    if (data.summary.tagLine) {
+      props.tagLine = data.summary.tagLine;
     }
 
     // Add approval-related properties if approval data exists
@@ -56,14 +50,14 @@ export class DashboardCampaignInfoMapper {
       }
     }
 
-    return DashboardCampaignInfo.fromPersistence(props);
+    return DashboardCampaignSummary.fromPersistence(props);
   }
 
   /**
    * Map from business model attributes only (for creation/updates)
    */
-  toDomainFromBusinessData(model: DashboardCampaignInfoModelAttributes): DashboardCampaignInfo {
-    const props: DashboardCampaignInfoProps = {
+  toDomainFromBusinessData(model: DashboardCampaignSummaryModelAttributes): DashboardCampaignSummary {
+    const props: DashboardCampaignSummaryProps = {
       id: model.id,
       campaignId: model.campaignId,
       status: ApprovalStatus.PENDING, // Default status for new items
@@ -72,35 +66,27 @@ export class DashboardCampaignInfoMapper {
     };
 
     // Add optional business fields if they exist
-    if (model.milestones) {
-      props.milestones = model.milestones;
+    if (model.summary) {
+      props.summary = model.summary;
     }
-    if (model.investorPitch) {
-      props.investorPitch = model.investorPitch;
-    }
-    if (model.isShowPitch !== null && model.isShowPitch !== undefined) {
-      props.isShowPitch = model.isShowPitch;
-    }
-    if (model.investorPitchTitle) {
-      props.investorPitchTitle = model.investorPitchTitle;
+    if (model.tagLine) {
+      props.tagLine = model.tagLine;
     }
 
-    return DashboardCampaignInfo.fromPersistence(props);
+    return DashboardCampaignSummary.fromPersistence(props);
   }
 
   /**
    * Map from domain entity to business table persistence model (no approval fields)
    */
   toBusinessPersistence(
-    domain: DashboardCampaignInfo
-  ): DashboardCampaignInfoModelAttributes {
+    domain: DashboardCampaignSummary
+  ): DashboardCampaignSummaryModelAttributes {
     return {
       id: domain.id,
       campaignId: domain.campaignId,
-      milestones: domain.milestones || null,
-      investorPitch: domain.investorPitch || null,
-      isShowPitch: domain.isShowPitch || null,
-      investorPitchTitle: domain.investorPitchTitle || null,
+      summary: domain.summary || null,
+      tagLine: domain.tagLine || null,
       createdAt: domain.createdAt,
       updatedAt: domain.updatedAt,
     };
@@ -110,13 +96,11 @@ export class DashboardCampaignInfoMapper {
    * Map for business table updates (only business fields)
    */
   toBusinessPersistenceUpdate(
-    domain: DashboardCampaignInfo
-  ): Partial<DashboardCampaignInfoModelAttributes> {
-    const persistenceData: Partial<DashboardCampaignInfoModelAttributes> = {
-      milestones: domain.milestones || null,
-      investorPitch: domain.investorPitch || null,
-      isShowPitch: domain.isShowPitch || null,
-      investorPitchTitle: domain.investorPitchTitle || null,
+    domain: DashboardCampaignSummary
+  ): Partial<DashboardCampaignSummaryModelAttributes> {
+    const persistenceData: Partial<DashboardCampaignSummaryModelAttributes> = {
+      summary: domain.summary || null,
+      tagLine: domain.tagLine || null,
       updatedAt: domain.updatedAt,
     };
 
@@ -140,10 +124,8 @@ export class DashboardCampaignInfoMapper {
       switch (key) {
         case 'id':
         case 'campaignId':
-        case 'milestones':
-        case 'investorPitch':
-        case 'isShowPitch':
-        case 'investorPitchTitle':
+        case 'summary':
+        case 'tagLine':
         case 'createdAt':
         case 'updatedAt':
           persistenceCriteria[key] = value;
@@ -172,8 +154,8 @@ export class DashboardCampaignInfoMapper {
    * Map multiple joined data to domain entities
    */
   toDomainList(
-    dataList: DashboardCampaignInfoWithApproval[]
-  ): DashboardCampaignInfo[] {
+    dataList: DashboardCampaignSummaryWithApproval[]
+  ): DashboardCampaignSummary[] {
     return dataList.map(data => this.toDomain(data));
   }
 
@@ -181,8 +163,8 @@ export class DashboardCampaignInfoMapper {
    * Map multiple business models to domain entities (with default status)
    */
   toDomainListFromBusinessData(
-    models: DashboardCampaignInfoModelAttributes[]
-  ): DashboardCampaignInfo[] {
+    models: DashboardCampaignSummaryModelAttributes[]
+  ): DashboardCampaignSummary[] {
     return models.map(model => this.toDomainFromBusinessData(model));
   }
 
@@ -207,45 +189,21 @@ export class DashboardCampaignInfoMapper {
    */
   createDomainFromData(data: {
     campaignId: string;
-    milestones?: string;
-    investorPitch?: string;
-    isShowPitch?: boolean;
-    investorPitchTitle?: string;
+    summary?: string;
+    tagLine?: string;
     userId?: string;
-  }): DashboardCampaignInfo {
+  }): DashboardCampaignSummary {
     const createProps: any = {
       campaignId: data.campaignId,
     };
 
-    if (data.milestones) {
-      createProps.milestones = data.milestones;
+    if (data.summary) {
+      createProps.summary = data.summary;
     }
-    if (data.investorPitch) {
-      createProps.investorPitch = data.investorPitch;
-    }
-    if (data.isShowPitch !== undefined) {
-      createProps.isShowPitch = data.isShowPitch;
-    }
-    if (data.investorPitchTitle) {
-      createProps.investorPitchTitle = data.investorPitchTitle;
+    if (data.tagLine) {
+      createProps.tagLine = data.tagLine;
     }
 
-    return DashboardCampaignInfo.create(createProps);
-  }
-
-  /**
-   * Legacy method for backward compatibility - converting to campaignInfo structure
-   */
-  toCampaignInfoPersistence(domain: DashboardCampaignInfo): any {
-    return {
-      id: randomUUID(),
-      campaignId: domain.campaignId,
-      milestones: domain.milestones,
-      investorPitch: domain.investorPitch,
-      isShowPitch: domain.isShowPitch,
-      investorPitchTitle: domain.investorPitchTitle,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    return DashboardCampaignSummary.create(createProps);
   }
 }

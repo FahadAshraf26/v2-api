@@ -1,25 +1,27 @@
-import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
+import { ApprovalStatus } from '@/shared/enums/dashboard-campaign-info.enums';
 
 import { DashboardApprovalProps } from '@/types/approval';
 
-export interface DashboardCampaignInfoModelAttributes {
+/**
+ * Dashboard Campaign Summary model attributes (persistence layer - business data only)
+ */
+export interface DashboardCampaignSummaryModelAttributes {
   id: string;
   campaignId: string;
-  milestones?: string | null;
-  investorPitch?: string | null;
-  isShowPitch?: boolean | null;
-  investorPitchTitle?: string | null;
+  summary?: string | null;
+  tagLine?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface DashboardCampaignInfoProps {
+/**
+ * Dashboard Campaign Summary domain properties (includes approval data from join)
+ */
+export interface DashboardCampaignSummaryProps {
   id: string;
   campaignId: string;
-  milestones?: string;
-  investorPitch?: string;
-  isShowPitch?: boolean;
-  investorPitchTitle?: string;
+  summary?: string;
+  tagLine?: string;
   status: ApprovalStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -33,42 +35,44 @@ export interface DashboardCampaignInfoProps {
 /**
  * Combined entity with approval data (from repository join)
  */
-export interface DashboardCampaignInfoWithApproval {
-  info: DashboardCampaignInfoModelAttributes;
+export interface DashboardCampaignSummaryWithApproval {
+  summary: DashboardCampaignSummaryModelAttributes;
   approval?: DashboardApprovalProps;
 }
 
-export interface CreateDashboardCampaignInfoDto {
+/**
+ * DTOs for dashboard campaign summary operations
+ */
+export interface CreateDashboardCampaignSummaryDto {
   campaignId: string;
-  milestones?: string;
-  investorPitch?: string;
-  isShowPitch?: boolean;
-  investorPitchTitle?: string;
+  summary?: string;
+  tagLine?: string;
 }
 
-export interface UpdateDashboardCampaignInfoDto {
-  milestones?: string;
-  investorPitch?: string;
-  isShowPitch?: boolean;
-  investorPitchTitle?: string;
+export interface UpdateDashboardCampaignSummaryDto {
+  summary?: string;
+  tagLine?: string;
 }
 
-export interface ReviewDashboardCampaignInfoDto {
+export interface ReviewDashboardCampaignSummaryDto {
   action: 'approve' | 'reject';
   comment?: string;
   adminId: string;
 }
 
-export interface CreateDashboardCampaignInfoRequest {
-  Body: CreateDashboardCampaignInfoDto;
+/**
+ * Request types
+ */
+export interface CreateDashboardCampaignSummaryRequest {
+  Body: CreateDashboardCampaignSummaryDto;
 }
 
-export interface UpdateDashboardCampaignInfoRequest {
+export interface UpdateDashboardCampaignSummaryRequest {
   Params: { id: string };
-  Body: UpdateDashboardCampaignInfoDto;
+  Body: UpdateDashboardCampaignSummaryDto;
 }
 
-export interface GetDashboardCampaignInfoRequest {
+export interface GetDashboardCampaignSummaryRequest {
   Params: { id: string };
 }
 
@@ -76,24 +80,25 @@ export interface GetByCampaignIdRequest {
   Params: { campaignId: string };
 }
 
-export interface SubmitDashboardCampaignInfoRequest {
+export interface SubmitDashboardCampaignSummaryRequest {
   Params: { id: string };
 }
 
-export interface ReviewDashboardCampaignInfoRequest {
+export interface ReviewDashboardCampaignSummaryRequest {
   Params: { id: string };
-  Body: Omit<ReviewDashboardCampaignInfoDto, 'adminId'>;
+  Body: Omit<ReviewDashboardCampaignSummaryDto, 'adminId'>;
 }
 
-export const dashboardCampaignInfoSchema = {
+/**
+ * JSON Schemas for validation
+ */
+export const dashboardCampaignSummarySchema = {
   type: 'object',
   properties: {
     id: { type: 'string', format: 'uuid' },
     campaignId: { type: 'string', format: 'uuid' },
-    milestones: { type: 'string', nullable: true },
-    investorPitch: { type: 'string', nullable: true },
-    isShowPitch: { type: 'boolean', nullable: true },
-    investorPitchTitle: { type: 'string', nullable: true },
+    summary: { type: 'string', nullable: true },
+    tagLine: { type: 'string', nullable: true },
     status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'] },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -105,31 +110,27 @@ export const dashboardCampaignInfoSchema = {
   },
 } as const;
 
-export const createDashboardCampaignInfoSchema = {
+export const createDashboardCampaignSummarySchema = {
   type: 'object',
   required: ['campaignId'],
   properties: {
     campaignId: { type: 'string', format: 'uuid' },
-    milestones: { type: 'string', minLength: 1 },
-    investorPitch: { type: 'string', minLength: 1 },
-    isShowPitch: { type: 'boolean' },
-    investorPitchTitle: { type: 'string', minLength: 1 },
+    summary: { type: 'string', minLength: 1 },
+    tagLine: { type: 'string', minLength: 1 },
   },
   additionalProperties: false,
 } as const;
 
-export const updateDashboardCampaignInfoSchema = {
+export const updateDashboardCampaignSummarySchema = {
   type: 'object',
   properties: {
-    milestones: { type: 'string', minLength: 1 },
-    investorPitch: { type: 'string', minLength: 1 },
-    isShowPitch: { type: 'boolean' },
-    investorPitchTitle: { type: 'string', minLength: 1 },
+    summary: { type: 'string', minLength: 1 },
+    tagLine: { type: 'string', minLength: 1 },
   },
   additionalProperties: false,
 } as const;
 
-export const reviewDashboardCampaignInfoSchema = {
+export const reviewDashboardCampaignSummarySchema = {
   type: 'object',
   required: ['action'],
   properties: {
@@ -150,7 +151,7 @@ export const successResponseSchema = {
   type: 'object',
   properties: {
     success: { type: 'boolean' },
-    data: dashboardCampaignInfoSchema,
+    data: dashboardCampaignSummarySchema,
     message: { type: 'string' },
   },
 } as const;
@@ -161,7 +162,7 @@ export const listResponseSchema = {
     success: { type: 'boolean' },
     data: {
       type: 'array',
-      items: dashboardCampaignInfoSchema,
+      items: dashboardCampaignSummarySchema,
     },
     count: { type: 'number' },
   },

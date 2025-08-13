@@ -6,7 +6,9 @@ import { container } from 'tsyringe';
 
 // Import all model schemas
 import { DashboardCampaignInfoSchema } from './models/dashboard-campaign-info.model';
+import { DashboardCampaignSummarySchema } from './models/dashboard-campaign-summary.model';
 import { CampaignSchema } from './models/campaign.model';
+import { DashboardApprovalSchema } from './models/dashboardApproval.model';
 
 @injectable()
 export class ModelRegistryService {
@@ -27,6 +29,8 @@ export class ModelRegistryService {
       const schemas = [
         CampaignSchema,
         DashboardCampaignInfoSchema,
+        DashboardCampaignSummarySchema,
+        DashboardApprovalSchema,
         // Add other model schemas here as they are created
       ];
 
