@@ -1,16 +1,21 @@
-import { injectable, inject } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
-import { BaseRepository } from './base.repository';
+import { Err, Ok, Result } from 'oxide.ts';
+import { inject, injectable } from 'tsyringe';
+
+import { TOKENS } from '@/config/dependency-injection';
+
 import { DashboardCampaignSummary } from '@/domain/dashboard-campaign-summary/entity/dashboard-campaign-summary.entity';
-import {
-  DashboardCampaignSummaryModelAttributes,
-  DashboardCampaignSummaryWithApproval
-} from '@/types/dashboard-campaign-summary';
+
+import { EventBus } from '@/infrastructure/events/event-bus';
+import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { DashboardCampaignSummaryMapper } from '@/infrastructure/mappers/dashboard-campaign-summary.mapper';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { EventBus } from '@/infrastructure/events/event-bus';
-import { TOKENS } from '@/config/dependency-injection';
+
+import {
+  DashboardCampaignSummaryModelAttributes,
+  DashboardCampaignSummaryWithApproval,
+} from '@/types/dashboard-campaign-summary';
+
+import { BaseRepository } from './base.repository';
 import { DashboardApprovalRepository } from './dashboard-approval.repository';
 
 @injectable()
@@ -34,15 +39,21 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
     return 'DashboardCampaignSummary';
   }
 
-  protected toDomain(model: DashboardCampaignSummaryModelAttributes): DashboardCampaignSummary {
+  protected toDomain(
+    model: DashboardCampaignSummaryModelAttributes
+  ): DashboardCampaignSummary {
     return this.mapper.toDomainFromBusinessData(model);
   }
 
-  protected toPersistence(domain: DashboardCampaignSummary): Partial<DashboardCampaignSummaryModelAttributes> {
-    return this.mapper.toBusinessPersistenceUpdate(domain);
+  protected toPersistence(
+    domain: DashboardCampaignSummary
+  ): DashboardCampaignSummaryModelAttributes {
+    return this.mapper.toBusinessPersistence(domain);
   }
 
-  protected toPersistenceCriteria(domainCriteria: Record<string, any>): Record<string, any> {
+  protected toPersistenceCriteria(
+    domainCriteria: Record<string, any>
+  ): Record<string, any> {
     return this.mapper.toBusinessPersistenceCriteria(domainCriteria);
   }
 
@@ -53,7 +64,10 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
     id: string
   ): Promise<Result<DashboardCampaignSummary | null, Error>> {
     try {
-      this.logger.debug('Finding dashboard campaign summary with approval by ID', { id });
+      this.logger.debug(
+        'Finding dashboard campaign summary with approval by ID',
+        { id }
+      );
 
       // Get business data
       const businessResult = await this.findById(id);
@@ -72,21 +86,30 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
         id
       );
       if (approvalResult.isErr()) {
-        this.logger.warn('Failed to fetch approval data', approvalResult.unwrapErr());
+        this.logger.warn(
+          'Failed to fetch approval data',
+          approvalResult.unwrapErr()
+        );
       }
 
       // Combine data
+      const approval = approvalResult.isOk() ? approvalResult.unwrap() : null;
       const withApprovalData: DashboardCampaignSummaryWithApproval = {
         summary: this.mapper.toBusinessPersistence(business),
-        approval: approvalResult.isOk() ? approvalResult.unwrap() || undefined : undefined,
+        ...(approval && { approval }),
       };
 
       const domain = this.mapper.toDomain(withApprovalData);
       return Ok(domain);
     } catch (error) {
-      this.logger.error('Error finding dashboard campaign summary with approval', error as Error);
+      this.logger.error(
+        'Error finding dashboard campaign summary with approval',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to find dashboard campaign summary: ${(error as Error).message}`)
+        new Error(
+          `Failed to find dashboard campaign summary: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -98,40 +121,50 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
     campaignId: string
   ): Promise<Result<DashboardCampaignSummary | null, Error>> {
     try {
-      this.logger.debug('Finding dashboard campaign summary by campaign ID with approval', { campaignId });
+      this.logger.debug(
+        'Finding dashboard campaign summary by campaign ID with approval',
+        { campaignId }
+      );
 
       const queryBuilder = this.createQueryBuilder();
-      const results = await queryBuilder
-        .where({ campaignId })
-        .execute();
+      const results = await queryBuilder.where({ campaignId }).execute();
 
       if (results.length === 0) {
         return Ok(null);
       }
 
-      const business = this.toDomain(results[0]);
+      const business = this.toDomain(results[0]!);
 
       // Get approval data
       const approvalResult = await this.approvalRepository.findByEntity(
         'dashboard-campaign-summary',
-        business.id
+        business.id!
       );
       if (approvalResult.isErr()) {
-        this.logger.warn('Failed to fetch approval data', approvalResult.unwrapErr());
+        this.logger.warn(
+          'Failed to fetch approval data',
+          approvalResult.unwrapErr()
+        );
       }
 
       // Combine data
+      const approval = approvalResult.isOk() ? approvalResult.unwrap() : null;
       const withApprovalData: DashboardCampaignSummaryWithApproval = {
         summary: this.mapper.toBusinessPersistence(business),
-        approval: approvalResult.isOk() ? approvalResult.unwrap() || undefined : undefined,
+        ...(approval && { approval }),
       };
 
       const domain = this.mapper.toDomain(withApprovalData);
       return Ok(domain);
     } catch (error) {
-      this.logger.error('Error finding dashboard campaign summary by campaign ID', error as Error);
+      this.logger.error(
+        'Error finding dashboard campaign summary by campaign ID',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to find dashboard campaign summary: ${(error as Error).message}`)
+        new Error(
+          `Failed to find dashboard campaign summary: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -144,7 +177,10 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
     submittedBy: string
   ): Promise<Result<DashboardCampaignSummary, Error>> {
     try {
-      this.logger.info('Submitting dashboard campaign summary for approval', { id, submittedBy });
+      this.logger.info('Submitting dashboard campaign summary for approval', {
+        id,
+        submittedBy,
+      });
 
       // Find the summary first
       const summaryResult = await this.findById(id);
@@ -170,9 +206,15 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
       }
 
       // Return updated summary with approval data
-      return await this.findByIdWithApproval(id) as Result<DashboardCampaignSummary, Error>;
+      return (await this.findByIdWithApproval(id)) as Result<
+        DashboardCampaignSummary,
+        Error
+      >;
     } catch (error) {
-      this.logger.error('Error submitting dashboard campaign summary for approval', error as Error);
+      this.logger.error(
+        'Error submitting dashboard campaign summary for approval',
+        error as Error
+      );
       return Err(
         new Error(`Failed to submit for approval: ${(error as Error).message}`)
       );
@@ -186,7 +228,10 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
     userId: string
   ): Promise<Result<DashboardCampaignSummary[], Error>> {
     try {
-      this.logger.debug('Finding dashboard campaign summaries by submitted user', { userId });
+      this.logger.debug(
+        'Finding dashboard campaign summaries by submitted user',
+        { userId }
+      );
 
       // Get approvals for this user
       const approvalsResult = await this.approvalRepository.findBySubmittedBy(
@@ -215,7 +260,10 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
 
       return Ok(summaries);
     } catch (error) {
-      this.logger.error('Error finding summaries by submitted user', error as Error);
+      this.logger.error(
+        'Error finding summaries by submitted user',
+        error as Error
+      );
       return Err(
         new Error(`Failed to find summaries: ${(error as Error).message}`)
       );
@@ -225,18 +273,24 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
   /**
    * Find approved dashboard campaign summaries
    */
-  async findApprovedWithApproval(): Promise<Result<DashboardCampaignSummary[], Error>> {
+  async findApprovedWithApproval(): Promise<
+    Result<DashboardCampaignSummary[], Error>
+  > {
     try {
       this.logger.debug('Finding approved dashboard campaign summaries');
 
       // Get approved approvals
-      const approvalsResult = await this.approvalRepository.findPending('dashboard-campaign-summary');
+      const approvalsResult = await this.approvalRepository.findPending(
+        'dashboard-campaign-summary'
+      );
       if (approvalsResult.isErr()) {
         return Err(approvalsResult.unwrapErr());
       }
 
       // Filter for approved ones
-      const approvals = approvalsResult.unwrap().filter(a => a.status === 'approved');
+      const approvals = approvalsResult
+        .unwrap()
+        .filter(a => a.status === 'approved');
       const summaries: DashboardCampaignSummary[] = [];
 
       // Get business data for each approval
@@ -254,7 +308,10 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
 
       return Ok(summaries);
     } catch (error) {
-      this.logger.error('Error finding approved dashboard campaign summaries', error as Error);
+      this.logger.error(
+        'Error finding approved dashboard campaign summaries',
+        error as Error
+      );
       return Err(
         new Error(`Failed to find approved items: ${(error as Error).message}`)
       );
@@ -264,7 +321,9 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
   /**
    * Count summaries by status using approval table
    */
-  async countByStatusWithApproval(): Promise<Result<{ pending: number; approved: number; rejected: number }, Error>> {
+  async countByStatusWithApproval(): Promise<
+    Result<{ pending: number; approved: number; rejected: number }, Error>
+  > {
     try {
       this.logger.debug('Counting dashboard campaign summaries by status');
 

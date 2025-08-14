@@ -1,16 +1,21 @@
-import { injectable, inject } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
-import { BaseRepository } from './base.repository';
+import { Err, Ok, Result } from 'oxide.ts';
+import { inject, injectable } from 'tsyringe';
+
+import { TOKENS } from '@/config/dependency-injection';
+
 import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
-import {
-  DashboardCampaignInfoModelAttributes,
-  DashboardCampaignInfoWithApproval
-} from '@/types/dashboard-campaign-info';
+
+import { EventBus } from '@/infrastructure/events/event-bus';
+import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { DashboardCampaignInfoMapper } from '@/infrastructure/mappers/dashboard-campaign-info.mapper';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { EventBus } from '@/infrastructure/events/event-bus';
-import { TOKENS } from '@/config/dependency-injection';
+
+import {
+  DashboardCampaignInfoModelAttributes,
+  DashboardCampaignInfoWithApproval,
+} from '@/types/dashboard-campaign-info';
+
+import { BaseRepository } from './base.repository';
 import { DashboardApprovalRepository } from './dashboard-approval.repository';
 
 @injectable()
@@ -34,15 +39,21 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
     return 'DashboardCampaignInfo';
   }
 
-  protected toDomain(model: DashboardCampaignInfoModelAttributes): DashboardCampaignInfo {
+  protected toDomain(
+    model: DashboardCampaignInfoModelAttributes
+  ): DashboardCampaignInfo {
     return this.mapper.toDomainFromBusinessData(model);
   }
 
-  protected toPersistence(domain: DashboardCampaignInfo): Partial<DashboardCampaignInfoModelAttributes> {
-    return this.mapper.toBusinessPersistenceUpdate(domain);
+  protected toPersistence(
+    domain: DashboardCampaignInfo
+  ): DashboardCampaignInfoModelAttributes {
+    return this.mapper.toBusinessPersistence(domain);
   }
 
-  protected toPersistenceCriteria(domainCriteria: Record<string, any>): Record<string, any> {
+  protected toPersistenceCriteria(
+    domainCriteria: Record<string, any>
+  ): Record<string, any> {
     return this.mapper.toBusinessPersistenceCriteria(domainCriteria);
   }
 
@@ -86,7 +97,9 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
     id: string
   ): Promise<Result<DashboardCampaignInfo | null, Error>> {
     try {
-      this.logger.debug('Finding dashboard campaign info with approval by ID', { id });
+      this.logger.debug('Finding dashboard campaign info with approval by ID', {
+        id,
+      });
 
       // Get business data
       const businessResult = await this.findById(id);
@@ -105,7 +118,10 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
         id
       );
       if (approvalResult.isErr()) {
-        this.logger.warn('Failed to fetch approval data', approvalResult.unwrapErr());
+        this.logger.warn(
+          'Failed to fetch approval data',
+          approvalResult.unwrapErr()
+        );
       }
 
       // Combine data
@@ -118,9 +134,14 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
       const domain = this.mapper.toDomain(withApprovalData);
       return Ok(domain);
     } catch (error) {
-      this.logger.error('Error finding dashboard campaign info with approval', error as Error);
+      this.logger.error(
+        'Error finding dashboard campaign info with approval',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to find dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to find dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -132,12 +153,13 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
     campaignId: string
   ): Promise<Result<DashboardCampaignInfo | null, Error>> {
     try {
-      this.logger.debug('Finding dashboard campaign info by campaign ID with approval', { campaignId });
+      this.logger.debug(
+        'Finding dashboard campaign info by campaign ID with approval',
+        { campaignId }
+      );
 
       const queryBuilder = this.createQueryBuilder();
-      const results = await queryBuilder
-        .where({ campaignId })
-        .execute();
+      const results = await queryBuilder.where({ campaignId }).execute();
 
       if (results.length === 0) {
         return Ok(null);
@@ -151,7 +173,10 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
         business.id
       );
       if (approvalResult.isErr()) {
-        this.logger.warn('Failed to fetch approval data', approvalResult.unwrapErr());
+        this.logger.warn(
+          'Failed to fetch approval data',
+          approvalResult.unwrapErr()
+        );
       }
 
       // Combine data
@@ -164,9 +189,14 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
       const domain = this.mapper.toDomain(withApprovalData);
       return Ok(domain);
     } catch (error) {
-      this.logger.error('Error finding dashboard campaign info by campaign ID', error as Error);
+      this.logger.error(
+        'Error finding dashboard campaign info by campaign ID',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to find dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to find dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -179,7 +209,10 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
     submittedBy: string
   ): Promise<Result<DashboardCampaignInfo, Error>> {
     try {
-      this.logger.info('Submitting dashboard campaign info for approval', { id, submittedBy });
+      this.logger.info('Submitting dashboard campaign info for approval', {
+        id,
+        submittedBy,
+      });
 
       // Find the info first
       const infoResult = await this.findById(id);
@@ -205,9 +238,15 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
       }
 
       // Return updated info with approval data
-      return await this.findByIdWithApproval(id) as Result<DashboardCampaignInfo, Error>;
+      return (await this.findByIdWithApproval(id)) as Result<
+        DashboardCampaignInfo,
+        Error
+      >;
     } catch (error) {
-      this.logger.error('Error submitting dashboard campaign info for approval', error as Error);
+      this.logger.error(
+        'Error submitting dashboard campaign info for approval',
+        error as Error
+      );
       return Err(
         new Error(`Failed to submit for approval: ${(error as Error).message}`)
       );
@@ -221,7 +260,9 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
     userId: string
   ): Promise<Result<DashboardCampaignInfo[], Error>> {
     try {
-      this.logger.debug('Finding dashboard campaign infos by submitted user', { userId });
+      this.logger.debug('Finding dashboard campaign infos by submitted user', {
+        userId,
+      });
 
       // Get approvals for this user
       const approvalsResult = await this.approvalRepository.findBySubmittedBy(
@@ -250,7 +291,10 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
 
       return Ok(infos);
     } catch (error) {
-      this.logger.error('Error finding infos by submitted user', error as Error);
+      this.logger.error(
+        'Error finding infos by submitted user',
+        error as Error
+      );
       return Err(
         new Error(`Failed to find infos: ${(error as Error).message}`)
       );
