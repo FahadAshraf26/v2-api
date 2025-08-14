@@ -1,6 +1,7 @@
-import { z } from 'zod';
 import dotenv from 'dotenv';
+
 import path from 'path';
+import { z } from 'zod';
 
 // Load environment variables BEFORE parsing
 const envFile =
@@ -51,9 +52,12 @@ const envSchema = z.object({
   REDIS_COMMAND_TIMEOUT: z.coerce.number().default(5000),
 
   // Cache TTL (in seconds)
+  CACHE_ENABLED: z.coerce.boolean().default(true),
   CACHE_TTL_DEFAULT: z.coerce.number().default(3600), // 1 hour
   CACHE_TTL_SHORT: z.coerce.number().default(300), // 5 minutes
   CACHE_TTL_LONG: z.coerce.number().default(86400), // 24 hours
+
+  JWT_SECRET: z.string(),
 });
 
 export const config = envSchema.parse(process.env);
