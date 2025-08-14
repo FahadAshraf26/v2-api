@@ -2,7 +2,8 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { injectable, inject } from 'tsyringe';
 import { DashboardCampaignInfoService } from '@/application/services/dashboard-campaign-info.service';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { AuthenticatedRequest } from '@/infrastructure/middleware/auth.middleware';
+import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
+import { BaseController } from '@/presentation/controllers/base.controller';
 import {
   CreateDashboardCampaignInfoRequest,
   GetByCampaignIdRequest,
@@ -14,12 +15,14 @@ import {
 } from '@/types/dashboard-campaign-info';
 
 @injectable()
-export class DashboardCampaignInfoController {
+export class DashboardCampaignInfoController extends BaseController {
   constructor(
     @inject(DashboardCampaignInfoService)
     private readonly service: DashboardCampaignInfoService,
-    @inject(LoggerService) private readonly logger: LoggerService
-  ) {}
+    @inject(LoggerService) logger: LoggerService
+  ) {
+    super(logger);
+  }
 
   /**
    * Create new dashboard campaign info
@@ -30,7 +33,6 @@ export class DashboardCampaignInfoController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.userId) {
         return reply
           .status(401)
@@ -59,13 +61,6 @@ export class DashboardCampaignInfoController {
         data: dashboardInfo.toObject(),
         message: 'Dashboard campaign info created successfully',
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in create dashboard campaign info',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
   }
 
   /**
@@ -77,7 +72,6 @@ export class DashboardCampaignInfoController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.userId) {
         return reply
           .status(401)
@@ -119,13 +113,6 @@ export class DashboardCampaignInfoController {
         data: dashboardInfo.toObject(),
         message: 'Dashboard campaign info updated successfully',
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in update dashboard campaign info',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
   }
 
   /**
@@ -137,7 +124,7 @@ export class DashboardCampaignInfoController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
+
       if (!request.userId) {
         return reply
           .status(401)
@@ -172,13 +159,6 @@ export class DashboardCampaignInfoController {
         data: dashboardInfo.toObject(),
         message: 'Dashboard campaign info submitted for review successfully',
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in submit dashboard campaign info',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
   }
 
   /**
@@ -190,7 +170,6 @@ export class DashboardCampaignInfoController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.adminUserId) {
         return reply
           .status(403)
@@ -231,13 +210,7 @@ export class DashboardCampaignInfoController {
         data: dashboardInfo.toObject(),
         message: `Dashboard campaign info ${reviewDto.action}d successfully`,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in review dashboard campaign info',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -249,7 +222,6 @@ export class DashboardCampaignInfoController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       const { id } = request.params;
       const result = await this.service.getById(id);
 
@@ -275,13 +247,7 @@ export class DashboardCampaignInfoController {
         success: true,
         data: dashboardInfo.toObject(),
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get dashboard campaign info by ID',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -292,7 +258,6 @@ export class DashboardCampaignInfoController {
     request: FastifyRequest<GetByCampaignIdRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       const { campaignId } = request.params;
       const result = await this.service.getByCampaignId(campaignId);
 
@@ -321,13 +286,7 @@ export class DashboardCampaignInfoController {
         success: true,
         data: dashboardInfo.toObject(),
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get dashboard campaign info by campaign ID',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -338,7 +297,7 @@ export class DashboardCampaignInfoController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
+
       if (!request.adminUserId) {
         return reply
           .status(403)
@@ -363,13 +322,7 @@ export class DashboardCampaignInfoController {
         data: pendingItems.map(item => item.toObject()),
         count: pendingItems.length,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get pending dashboard campaign infos',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -380,7 +333,6 @@ export class DashboardCampaignInfoController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.userId) {
         return reply
           .status(401)
@@ -406,12 +358,6 @@ export class DashboardCampaignInfoController {
         data: userItems.map(item => item.toObject()),
         count: userItems.length,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get user dashboard campaign infos',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 }

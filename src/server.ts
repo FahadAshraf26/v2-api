@@ -1,22 +1,25 @@
 import 'reflect-metadata';
 
-if (!process.env['ENV_LOADED']) {
-  require('dotenv').config();
-  process.env['ENV_LOADED'] = 'true';
-}
-
 import Fastify, { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
+
 import { config } from '@/config/app';
 import {
   setupDependencyInjection,
   TOKENS,
 } from '@/config/dependency-injection';
-import { DatabaseService } from '@/infrastructure/database/database.service';
+
 import { CacheService } from '@/infrastructure/cache/cache.service';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
+import { DatabaseService } from '@/infrastructure/database/database.service';
 import { ModelRegistryService } from '@/infrastructure/database/model-registry.service';
-import { errorHandler } from '@/shared/errors/error-handler';
+import { LoggerService } from '@/infrastructure/logging/logger.service';
+
+import { ErrorHandlerMiddleware } from '@/shared/utils/middleware/error-handler.middleware';
+
+if (!process.env['ENV_LOADED']) {
+  require('dotenv').config();
+  process.env['ENV_LOADED'] = 'true';
+}
 
 async function initializeServices(logger: LoggerService): Promise<{
   databaseService: DatabaseService;
@@ -156,8 +159,8 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
     transformStaticCSP: header => header,
   });
   logger.info('✅ API documentation configured');
-
-  app.setErrorHandler(errorHandler);
+  const errorHandler = new ErrorHandlerMiddleware();
+  app.setErrorHandler(errorHandler.handleError);
 
   logger.info('🛣️  Registering application routes...');
   await app.register(import('./presentation/routes'), {

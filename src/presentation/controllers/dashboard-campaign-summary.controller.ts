@@ -2,7 +2,8 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { injectable, inject } from 'tsyringe';
 import { DashboardCampaignSummaryService } from '@/application/services/dashboard-campaign-summary.service';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { AuthenticatedRequest } from '@/infrastructure/middleware/auth.middleware';
+import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
+import { BaseController } from '@/presentation/controllers/base.controller';
 import {
   CreateDashboardCampaignSummaryRequest,
   GetByCampaignIdRequest,
@@ -14,12 +15,14 @@ import {
 } from '@/types/dashboard-campaign-summary';
 
 @injectable()
-export class DashboardCampaignSummaryController {
+export class DashboardCampaignSummaryController extends BaseController {
   constructor(
     @inject(DashboardCampaignSummaryService)
     private readonly service: DashboardCampaignSummaryService,
-    @inject(LoggerService) private readonly logger: LoggerService
-  ) {}
+    @inject(LoggerService) logger: LoggerService
+  ) {
+    super(logger);
+  }
 
   /**
    * Create new dashboard campaign summary
@@ -30,7 +33,6 @@ export class DashboardCampaignSummaryController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.userId) {
         return reply
           .status(401)
@@ -59,13 +61,7 @@ export class DashboardCampaignSummaryController {
         data: dashboardSummary.toObject(),
         message: 'Dashboard campaign summary created successfully',
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in create dashboard campaign summary',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -77,7 +73,6 @@ export class DashboardCampaignSummaryController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.userId) {
         return reply
           .status(401)
@@ -119,13 +114,7 @@ export class DashboardCampaignSummaryController {
         data: dashboardSummary.toObject(),
         message: 'Dashboard campaign summary updated successfully',
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in update dashboard campaign summary',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -137,7 +126,6 @@ export class DashboardCampaignSummaryController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.userId) {
         return reply
           .status(401)
@@ -176,13 +164,7 @@ export class DashboardCampaignSummaryController {
         data: dashboardSummary.toObject(),
         message: 'Dashboard campaign summary submitted for review successfully',
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in submit dashboard campaign summary',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -194,7 +176,6 @@ export class DashboardCampaignSummaryController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.adminUserId) {
         return reply
           .status(403)
@@ -235,13 +216,7 @@ export class DashboardCampaignSummaryController {
         data: dashboardSummary.toObject(),
         message: `Dashboard campaign summary ${reviewDto.action}d successfully`,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in review dashboard campaign summary',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -253,7 +228,6 @@ export class DashboardCampaignSummaryController {
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       const { id } = request.params;
       const result = await this.service.getById(id);
 
@@ -279,13 +253,7 @@ export class DashboardCampaignSummaryController {
         success: true,
         data: dashboardSummary.toObject(),
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get dashboard campaign summary by ID',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -296,7 +264,6 @@ export class DashboardCampaignSummaryController {
     request: FastifyRequest<GetByCampaignIdRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       const { campaignId } = request.params;
       const result = await this.service.getByCampaignId(campaignId);
 
@@ -325,13 +292,7 @@ export class DashboardCampaignSummaryController {
         success: true,
         data: dashboardSummary.toObject(),
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get dashboard campaign summary by campaign ID',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -342,7 +303,6 @@ export class DashboardCampaignSummaryController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.adminUserId) {
         return reply
           .status(403)
@@ -367,13 +327,7 @@ export class DashboardCampaignSummaryController {
         data: pendingItems.map(item => item.toObject()),
         count: pendingItems.length,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get pending dashboard campaign summaries',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -384,7 +338,6 @@ export class DashboardCampaignSummaryController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.userId) {
         return reply
           .status(401)
@@ -410,13 +363,7 @@ export class DashboardCampaignSummaryController {
         data: userItems.map(item => item.toObject()),
         count: userItems.length,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get user dashboard campaign summaries',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -427,7 +374,6 @@ export class DashboardCampaignSummaryController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       const result = await this.service.getApproved();
 
       if (result.isErr()) {
@@ -446,13 +392,7 @@ export class DashboardCampaignSummaryController {
         data: approvedItems.map(item => item.toObject()),
         count: approvedItems.length,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get approved dashboard campaign summaries',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 
   /**
@@ -463,7 +403,6 @@ export class DashboardCampaignSummaryController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
       if (!request.adminUserId) {
         return reply
           .status(403)
@@ -487,12 +426,6 @@ export class DashboardCampaignSummaryController {
         success: true,
         data: statistics,
       });
-    } catch (error) {
-      this.logger.error(
-        'Error in get dashboard campaign summary statistics',
-        error as Error
-      );
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+
   }
 }
