@@ -1,20 +1,25 @@
+import { Err, Ok, Result } from 'oxide.ts';
 import { inject } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
+
+import { TOKENS } from '@/config/dependency-injection';
+
+import { AggregateRoot } from '@/domain/core/aggregate-root';
+import { Entity } from '@/domain/core/entity';
 import {
-  IPaginatedRepository,
-  FindOneCriteria,
-  FindManyCriteria,
   CountCriteria,
+  FindManyCriteria,
+  FindOneCriteria,
+  IPaginatedRepository,
   PaginatedResult,
 } from '@/domain/core/repository.interface';
-import { Entity } from '@/domain/core/entity';
-import { AggregateRoot } from '@/domain/core/aggregate-root';
+import type { WhereCondition } from '@/domain/core/repository.interface';
+
+import { EventBus } from '@/infrastructure/events/event-bus';
+import { LoggerService } from '@/infrastructure/logging/logger.service';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
 import type { IQueryBuilder } from '@/infrastructure/persistence/query-builder/query-builder.interface';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { EventBus } from '@/infrastructure/events/event-bus';
-import { TOKENS } from '@/config/dependency-injection';
-import type { WhereCondition } from '@/domain/core/repository.interface';
+
+import { ErrorConverter } from '@/shared/utils/error-converter';
 
 export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
   implements IPaginatedRepository<TDomain>
@@ -76,9 +81,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         `Error finding ${this.getEntityName()} by id`,
         error as Error
       );
-      return Err(
-        this.createError(`Failed to find ${this.getEntityName()}`, error)
-      );
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -127,9 +131,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         `Error finding ${this.getEntityName()}`,
         error as Error
       );
-      return Err(
-        this.createError(`Failed to find ${this.getEntityName()}`, error)
-      );
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -189,9 +192,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         `Error finding multiple ${this.getEntityName()}s`,
         error as Error
       );
-      return Err(
-        this.createError(`Failed to find ${this.getEntityName()}s`, error)
-      );
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -265,7 +267,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       return Ok(result);
     } catch (error) {
       this.logger.error('Error in paginated find', error as Error);
-      return Err(this.createError('Pagination failed', error));
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -292,7 +295,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       return Ok(count);
     } catch (error) {
       this.logger.error('Error counting entities', error as Error);
-      return Err(this.createError('Count failed', error));
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -307,7 +311,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       return Ok(count > 0);
     } catch (error) {
       this.logger.error('Error checking existence', error as Error);
-      return Err(this.createError('Existence check failed', error));
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -343,9 +348,10 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       return Ok(savedDomain);
     } catch (error) {
       this.logger.error(`Error saving ${this.getEntityName()}`, error as Error);
-      return Err(
-        this.createError(`Failed to save ${this.getEntityName()}`, error)
-      );
+
+      // Better error conversion for database errors
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -379,7 +385,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       return Ok(savedDomains);
     } catch (error) {
       this.logger.error('Error in batch save', error as Error);
-      return Err(this.createError('Batch save failed', error));
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -443,9 +450,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         `Error updating ${this.getEntityName()}`,
         error as Error
       );
-      return Err(
-        this.createError(`Failed to update ${this.getEntityName()}`, error)
-      );
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -480,9 +486,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         `Error deleting ${this.getEntityName()}`,
         error as Error
       );
-      return Err(
-        this.createError(`Failed to delete ${this.getEntityName()}`, error)
-      );
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -513,7 +518,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       return Ok(undefined);
     } catch (error) {
       this.logger.error('Error in batch delete', error as Error);
-      return Err(this.createError('Batch delete failed', error));
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -535,7 +541,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       return Ok(result);
     } catch (error) {
       this.logger.error('Transaction failed', error as Error);
-      return Err(this.createError('Transaction failed', error));
+      const appError = ErrorConverter.fromDatabaseError(error);
+      return Err(appError);
     }
   }
 
@@ -619,24 +626,6 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       }
     }
   }
-
-  /**
-   * Create consistent error messages
-   */
-  protected createError(message: string, originalError?: any): Error {
-    const errorMessage = originalError?.message
-      ? `${message}: ${originalError.message}`
-      : message;
-
-    const error = new Error(errorMessage);
-
-    if (originalError?.stack) {
-      error.stack = originalError.stack;
-    }
-
-    return error;
-  }
-
   /**
    * Validate entity before save/update
    * Override in concrete repositories for custom validation

@@ -4,6 +4,13 @@ import { DashboardCampaignSummaryService } from '@/application/services/dashboar
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
 import { BaseController } from '@/presentation/controllers/base.controller';
+import { ErrorConverter } from '@/shared/utils/error-converter';
+import {
+  NotFoundError,
+  ConflictError,
+  ForbiddenError,
+  ValidationError,
+} from '@/shared/errors';
 import {
   CreateDashboardCampaignSummaryRequest,
   GetByCampaignIdRequest,
@@ -29,39 +36,20 @@ export class DashboardCampaignSummaryController extends BaseController {
    * POST /api/v2/dashboard-campaign-summary
    */
   async create(
-    request: FastifyRequest<CreateDashboardCampaignSummaryRequest> &
-      AuthenticatedRequest,
+    request: FastifyRequest<CreateDashboardCampaignSummaryRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      if (!request.userId) {
-        return reply
-          .status(401)
-          .send({ error: 'User authentication required' });
-      }
+    const userId = this.requireAuth(request);
 
-      const result = await this.service.create(request.body, request.userId);
+    const result = await this.service.create(request.body, userId);
 
-      if (result.isErr()) {
-        const error = result.unwrapErr();
-        this.logger.warn('Failed to create dashboard campaign summary', {
-          error: error.message,
-        });
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-        if (error.message.includes('already exists')) {
-          return reply.status(409).send({ error: error.message });
-        }
-
-        return reply.status(400).send({ error: error.message });
-      }
-
-      const dashboardSummary = result.unwrap();
-
-      return reply.status(201).send({
-        success: true,
-        data: dashboardSummary.toObject(),
-        message: 'Dashboard campaign summary created successfully',
-      });
-
+    const dashboardSummary = result.unwrap();
+    return this.created(reply, dashboardSummary.toObject(),
+      'Dashboard campaign summary created successfully');
   }
 
   /**
@@ -69,52 +57,21 @@ export class DashboardCampaignSummaryController extends BaseController {
    * PUT /api/v2/dashboard-campaign-summary/:id
    */
   async update(
-    request: FastifyRequest<UpdateDashboardCampaignSummaryRequest> &
-      AuthenticatedRequest,
+    request: FastifyRequest<UpdateDashboardCampaignSummaryRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      if (!request.userId) {
-        return reply
-          .status(401)
-          .send({ error: 'User authentication required' });
-      }
+    const userId = this.requireAuth(request);
+    const { id } = request.params;
 
-      const { id } = request.params;
-      const result = await this.service.update(
-        id,
-        request.body,
-        request.userId
-      );
+    const result = await this.service.update(id, request.body, userId);
 
-      if (result.isErr()) {
-        const error = result.unwrapErr();
-        this.logger.warn('Failed to update dashboard campaign summary', {
-          id,
-          error: error.message,
-        });
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-        if (error.message.includes('not found')) {
-          return reply.status(404).send({ error: error.message });
-        }
-
-        if (
-          error.message.includes('not authorized') ||
-          error.message.includes('approved')
-        ) {
-          return reply.status(403).send({ error: error.message });
-        }
-
-        return reply.status(400).send({ error: error.message });
-      }
-
-      const dashboardSummary = result.unwrap();
-
-      return reply.status(200).send({
-        success: true,
-        data: dashboardSummary.toObject(),
-        message: 'Dashboard campaign summary updated successfully',
-      });
-
+    const dashboardSummary = result.unwrap();
+    return this.ok(reply, dashboardSummary.toObject(),
+      'Dashboard campaign summary updated successfully');
   }
 
   /**
@@ -122,49 +79,21 @@ export class DashboardCampaignSummaryController extends BaseController {
    * POST /api/v2/dashboard-campaign-summary/:id/submit
    */
   async submit(
-    request: FastifyRequest<SubmitDashboardCampaignSummaryRequest> &
-      AuthenticatedRequest,
+    request: FastifyRequest<SubmitDashboardCampaignSummaryRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      if (!request.userId) {
-        return reply
-          .status(401)
-          .send({ error: 'User authentication required' });
-      }
+    const userId = this.requireAuth(request);
+    const { id } = request.params;
 
-      const { id } = request.params;
-      const result = await this.service.submit(id, request.userId);
+    const result = await this.service.submit(id, userId);
 
-      if (result.isErr()) {
-        const error = result.unwrapErr();
-        this.logger.warn('Failed to submit dashboard campaign summary', {
-          id,
-          error: error.message,
-        });
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-        if (error.message.includes('not found')) {
-          return reply.status(404).send({ error: error.message });
-        }
-
-        if (error.message.includes('already approved')) {
-          return reply.status(409).send({ error: error.message });
-        }
-
-        if (error.message.includes('needs content')) {
-          return reply.status(400).send({ error: error.message });
-        }
-
-        return reply.status(400).send({ error: error.message });
-      }
-
-      const dashboardSummary = result.unwrap();
-
-      return reply.status(200).send({
-        success: true,
-        data: dashboardSummary.toObject(),
-        message: 'Dashboard campaign summary submitted for review successfully',
-      });
-
+    const dashboardSummary = result.unwrap();
+    return this.ok(reply, dashboardSummary.toObject(),
+      'Dashboard campaign summary submitted for review successfully');
   }
 
   /**
@@ -172,51 +101,26 @@ export class DashboardCampaignSummaryController extends BaseController {
    * POST /api/v2/dashboard-campaign-summary/:id/review
    */
   async review(
-    request: FastifyRequest<ReviewDashboardCampaignSummaryRequest> &
-      AuthenticatedRequest,
+    request: FastifyRequest<ReviewDashboardCampaignSummaryRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      if (!request.adminUserId) {
-        return reply
-          .status(403)
-          .send({ error: 'Admin authentication required' });
-      }
+    const adminId = this.requireAdmin(request);
+    const { id } = request.params;
 
-      const { id } = request.params;
-      const reviewDto: ReviewDashboardCampaignSummaryDto = {
-        ...request.body,
-        adminId: request.adminUserId,
-      };
+    const reviewDto: ReviewDashboardCampaignSummaryDto = {
+      ...request.body,
+      adminId,
+    };
 
-      const result = await this.service.review(id, reviewDto);
+    const result = await this.service.review(id, reviewDto);
 
-      if (result.isErr()) {
-        const error = result.unwrapErr();
-        this.logger.warn('Failed to review dashboard campaign summary', {
-          id,
-          action: reviewDto.action,
-          error: error.message,
-        });
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-        if (error.message.includes('not found')) {
-          return reply.status(404).send({ error: error.message });
-        }
-
-        if (error.message.includes('Comment is required')) {
-          return reply.status(400).send({ error: error.message });
-        }
-
-        return reply.status(400).send({ error: error.message });
-      }
-
-      const dashboardSummary = result.unwrap();
-
-      return reply.status(200).send({
-        success: true,
-        data: dashboardSummary.toObject(),
-        message: `Dashboard campaign summary ${reviewDto.action}d successfully`,
-      });
-
+    const dashboardSummary = result.unwrap();
+    return this.ok(reply, dashboardSummary.toObject(),
+      `Dashboard campaign summary ${reviewDto.action}d successfully`);
   }
 
   /**
@@ -224,36 +128,24 @@ export class DashboardCampaignSummaryController extends BaseController {
    * GET /api/v2/dashboard-campaign-summary/:id
    */
   async getById(
-    request: FastifyRequest<GetDashboardCampaignSummaryRequest> &
-      AuthenticatedRequest,
+    request: FastifyRequest<GetDashboardCampaignSummaryRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      const { id } = request.params;
-      const result = await this.service.getById(id);
+    this.requireAuth(request);
+    const { id } = request.params;
 
-      if (result.isErr()) {
-        this.logger.warn('Failed to get dashboard campaign summary', {
-          id,
-          error: result.unwrapErr().message,
-        });
-        return reply
-          .status(500)
-          .send({ error: 'Failed to retrieve dashboard campaign summary' });
-      }
+    const result = await this.service.getById(id);
 
-      const dashboardSummary = result.unwrap();
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-      if (!dashboardSummary) {
-        return reply
-          .status(404)
-          .send({ error: 'Dashboard campaign summary not found' });
-      }
+    const dashboardSummary = result.unwrap();
+    if (!dashboardSummary) {
+      throw new NotFoundError('Dashboard campaign summary', id);
+    }
 
-      return reply.status(200).send({
-        success: true,
-        data: dashboardSummary.toObject(),
-      });
-
+    return this.ok(reply, dashboardSummary.toObject());
   }
 
   /**
@@ -264,35 +156,21 @@ export class DashboardCampaignSummaryController extends BaseController {
     request: FastifyRequest<GetByCampaignIdRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      const { campaignId } = request.params;
-      const result = await this.service.getByCampaignId(campaignId);
+    this.requireAuth(request);
+    const { campaignId } = request.params;
 
-      if (result.isErr()) {
-        this.logger.warn(
-          'Failed to get dashboard campaign summary by campaign ID',
-          {
-            campaignId,
-            error: result.unwrapErr().message,
-          }
-        );
-        return reply
-          .status(500)
-          .send({ error: 'Failed to retrieve dashboard campaign summary' });
-      }
+    const result = await this.service.getByCampaignId(campaignId);
 
-      const dashboardSummary = result.unwrap();
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-      if (!dashboardSummary) {
-        return reply.status(404).send({
-          error: 'Dashboard campaign summary not found for this campaign',
-        });
-      }
+    const dashboardSummary = result.unwrap();
+    if (!dashboardSummary) {
+      throw new NotFoundError('Dashboard campaign summary for campaign', campaignId);
+    }
 
-      return reply.status(200).send({
-        success: true,
-        data: dashboardSummary.toObject(),
-      });
-
+    return this.ok(reply, dashboardSummary.toObject());
   }
 
   /**
@@ -303,31 +181,19 @@ export class DashboardCampaignSummaryController extends BaseController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      if (!request.adminUserId) {
-        return reply
-          .status(403)
-          .send({ error: 'Admin authentication required' });
-      }
+    this.requireAdmin(request);
 
-      const result = await this.service.getPendingForReview();
+    const result = await this.service.getPendingForReview();
 
-      if (result.isErr()) {
-        this.logger.warn('Failed to get pending dashboard campaign summaries', {
-          error: result.unwrapErr().message,
-        });
-        return reply
-          .status(500)
-          .send({ error: 'Failed to retrieve pending items' });
-      }
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-      const pendingItems = result.unwrap();
-
-      return reply.status(200).send({
-        success: true,
-        data: pendingItems.map(item => item.toObject()),
-        count: pendingItems.length,
-      });
-
+    const pendingItems = result.unwrap();
+    return this.ok(reply, {
+      data: pendingItems.map(item => item.toObject()),
+      count: pendingItems.length,
+    });
   }
 
   /**
@@ -338,94 +204,61 @@ export class DashboardCampaignSummaryController extends BaseController {
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      if (!request.userId) {
-        return reply
-          .status(401)
-          .send({ error: 'User authentication required' });
-      }
+    const userId = this.requireAuth(request);
 
-      const result = await this.service.getBySubmittedBy(request.userId);
+    const result = await this.service.getBySubmittedBy(userId);
 
-      if (result.isErr()) {
-        this.logger.warn('Failed to get user dashboard campaign summaries', {
-          userId: request.userId,
-          error: result.unwrapErr().message,
-        });
-        return reply
-          .status(500)
-          .send({ error: 'Failed to retrieve your submissions' });
-      }
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-      const userItems = result.unwrap();
-
-      return reply.status(200).send({
-        success: true,
-        data: userItems.map(item => item.toObject()),
-        count: userItems.length,
-      });
-
+    const userItems = result.unwrap();
+    return this.ok(reply, {
+      data: userItems.map(item => item.toObject()),
+      count: userItems.length,
+    });
   }
 
   /**
-   * Get approved dashboard campaign summaries
+   * Get all approved dashboard campaign summaries
    * GET /api/v2/dashboard-campaign-summary/approved
    */
   async getApproved(
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      const result = await this.service.getApproved();
+    this.requireAuth(request);
 
-      if (result.isErr()) {
-        this.logger.warn('Failed to get approved dashboard campaign summaries', {
-          error: result.unwrapErr().message,
-        });
-        return reply
-          .status(500)
-          .send({ error: 'Failed to retrieve approved items' });
-      }
+    const result = await this.service.getApproved();
 
-      const approvedItems = result.unwrap();
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-      return reply.status(200).send({
-        success: true,
-        data: approvedItems.map(item => item.toObject()),
-        count: approvedItems.length,
-      });
-
+    const approvedItems = result.unwrap();
+    return this.ok(reply, {
+      data: approvedItems.map(item => item.toObject()),
+      count: approvedItems.length,
+    });
   }
 
   /**
-   * Get dashboard campaign summary statistics
+   * Get dashboard campaign summary statistics (admin only)
    * GET /api/v2/dashboard-campaign-summary/admin/statistics
    */
   async getStatistics(
     request: FastifyRequest & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-      if (!request.adminUserId) {
-        return reply
-          .status(403)
-          .send({ error: 'Admin authentication required' });
-      }
+    this.requireAdmin(request);
 
-      const result = await this.service.getStatistics();
+    const result = await this.service.getStatistics();
 
-      if (result.isErr()) {
-        this.logger.warn('Failed to get dashboard campaign summary statistics', {
-          error: result.unwrapErr().message,
-        });
-        return reply
-          .status(500)
-          .send({ error: 'Failed to retrieve statistics' });
-      }
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
 
-      const statistics = result.unwrap();
-
-      return reply.status(200).send({
-        success: true,
-        data: statistics,
-      });
-
+    const statistics = result.unwrap();
+    return this.ok(reply, statistics);
   }
 }
