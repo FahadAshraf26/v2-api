@@ -100,27 +100,76 @@ export class ErrorHandlerMiddleware {
     const validationErrors: ValidationErrorDetail[] = [];
 
     // Parse validation errors based on Fastify's structure
-    if (error.validation) {
+    if (error.validation && Array.isArray(error.validation)) {
       error.validation.forEach((validationError: any) => {
-        const field = validationError.instancePath
-          ? validationError.instancePath.replace(/^\//, '').replace(/\//g, '.')
-          : validationError.dataPath?.replace(/^\./, '') || 'unknown';
+        // Try multiple ways to extract the field name
+        let field = 'unknown';
+
+        // Method 1: From instancePath (e.g., "/campaignId")
+        if (validationError.instancePath) {
+          field = validationError.instancePath
+            .replace(/^\//, '')
+            .replace(/\//g, '.');
+        }
+        // Method 2: From dataPath (older format)
+        else if (validationError.dataPath) {
+          field = validationError.dataPath.replace(/^\./, '');
+        }
+        // Method 3: From params.missingProperty (for required fields)
+        else if (validationError.params?.missingProperty) {
+          field = validationError.params.missingProperty;
+        }
+        // Method 4: From schemaPath (e.g., "#/properties/campaignId/required")
+        else if (validationError.schemaPath) {
+          const schemaMatch =
+            validationError.schemaPath.match(/properties\/([^/]+)/);
+          if (schemaMatch) {
+            field = schemaMatch[1];
+          }
+        }
+
+        // If still unknown and message mentions a property, extract from message
+        if (field === 'unknown' && validationError.message) {
+          const msgMatch = validationError.message.match(/property '([^']+)'/);
+          if (msgMatch) {
+            field = msgMatch[1];
+          }
+        }
 
         const message = validationError.message || 'Validation failed';
 
         validationErrors.push({
-          field: field || validationError.params?.missingProperty || 'body',
+          field: field || 'body',
           message: message,
           value: validationError.params?.allowedValues || undefined,
         });
       });
     } else {
-      // Fallback for different validation error formats
+      // Fallback for simple error messages
       const message = error.message || 'Validation failed';
 
-      // Try to extract field from error message (e.g., "body must have required property 'campaignId'")
-      const fieldMatch = message.match(/property '([^']+)'/);
-      const field = fieldMatch ? fieldMatch[1] : 'body';
+      // Enhanced field extraction from error message
+      let field = 'body';
+
+      // Pattern 1: "body must have required property 'campaignId'"
+      const propertyMatch = message.match(/property '([^']+)'/);
+      if (propertyMatch) {
+        field = propertyMatch[1];
+      }
+      // Pattern 2: "body/campaignId must be..."
+      else if (message.includes('body/')) {
+        const pathMatch = message.match(/body\/([^\s]+)/);
+        if (pathMatch) {
+          field = pathMatch[1];
+        }
+      }
+      // Pattern 3: Direct field mention "campaignId is required"
+      else if (message.includes(' is required')) {
+        const fieldMatch = message.match(/^(\w+) is required/);
+        if (fieldMatch) {
+          field = fieldMatch[1];
+        }
+      }
 
       validationErrors.push({
         field: field,
@@ -128,7 +177,8 @@ export class ErrorHandlerMiddleware {
       });
     }
 
-    const response: ErrorResponse = {
+    // Create the response object
+    const responseObj = {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Request validation failed',
@@ -138,7 +188,14 @@ export class ErrorHandlerMiddleware {
       },
     };
 
-    reply.status(400).send(response);
+    // Explicitly stringify the response to ensure proper serialization
+    const responseString = JSON.stringify(responseObj);
+
+    // Send as JSON string with proper headers
+    reply
+      .code(400)
+      .header('Content-Type', 'application/json; charset=utf-8')
+      .send(responseString);
   }
 
   /**
@@ -149,7 +206,7 @@ export class ErrorHandlerMiddleware {
     reply: FastifyReply,
     requestId: string
   ): void {
-    const response: ErrorResponse = {
+    const responseObj = {
       error: {
         code: error.code,
         message: error.message,
@@ -159,7 +216,12 @@ export class ErrorHandlerMiddleware {
       },
     };
 
-    reply.status(error.statusCode).send(response);
+    const responseString = JSON.stringify(responseObj);
+
+    reply
+      .code(error.statusCode)
+      .header('Content-Type', 'application/json; charset=utf-8')
+      .send(responseString);
   }
 
   /**
@@ -170,7 +232,7 @@ export class ErrorHandlerMiddleware {
     reply: FastifyReply,
     requestId: string
   ): void {
-    const response: ErrorResponse = {
+    const responseObj = {
       error: {
         code: error.code,
         message: error.message,
@@ -179,7 +241,12 @@ export class ErrorHandlerMiddleware {
       },
     };
 
-    reply.status(error.statusCode).send(response);
+    const responseString = JSON.stringify(responseObj);
+
+    reply
+      .code(error.statusCode)
+      .header('Content-Type', 'application/json; charset=utf-8')
+      .send(responseString);
   }
 
   /**
@@ -275,7 +342,6 @@ export class ErrorHandlerMiddleware {
     reply: FastifyReply,
     requestId: string
   ): void {
-    // Log unknown errors as they might indicate bugs
     this.logger.error('Unknown error occurred', {
       error,
       requestId,
@@ -284,7 +350,7 @@ export class ErrorHandlerMiddleware {
       errorString: String(error),
     });
 
-    const response: ErrorResponse = {
+    const responseObj = {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: 'An unexpected error occurred',
@@ -293,7 +359,12 @@ export class ErrorHandlerMiddleware {
       },
     };
 
-    reply.status(500).send(response);
+    const responseString = JSON.stringify(responseObj);
+
+    reply
+      .code(500)
+      .header('Content-Type', 'application/json; charset=utf-8')
+      .send(responseString);
   }
 
   /**
