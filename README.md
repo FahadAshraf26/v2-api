@@ -30,22 +30,15 @@ src/
 │   │   ├── aggregate-root.ts # Base aggregate root
 │   │   ├── value-object.ts   # Base value object
 │   │   └── repository.interface.ts # Repository contracts
-│   ├── campaign/        # Campaign aggregate
-│   │   ├── entity/      # Campaign entity
-│   │   └── errors/      # Campaign-specific errors
-│   ├── dashboard-campaign-info/ # Dashboard campaign info aggregate
-│   │   ├── entity/      # Dashboard campaign info entity
-│   │   ├── events/      # Domain events
-│   │   └── errors/      # Domain-specific errors
-│   └── dashboard-campaign-summary/ # Dashboard campaign summary aggregate
-│       ├── entity/      # Dashboard campaign summary entity
+│   └── [aggregates]/    # Domain aggregates (campaign, dashboard-*, etc.)
+│       ├── entity/      # Entity definitions
 │       ├── events/      # Domain events
 │       └── errors/      # Domain-specific errors
 ├── infrastructure/       # Infrastructure Layer (External System Adapters)
 │   ├── cache/           # Redis caching implementation
 │   ├── database/        # Database models & connections
 │   │   ├── models/      # ORM model schemas
-│   │   └── database.service.ts # Database service
+│   │   └── *.service.ts # Database services
 │   ├── events/          # Domain event handling
 │   ├── logging/         # Structured logging with Pino
 │   ├── mappers/         # Data mapping between layers
@@ -66,67 +59,66 @@ src/
 
 tests/                   # Test Suite (Domain-focused)
 ├── setup/              # Test configuration & helpers
-│   ├── global-setup.ts # Global test setup for Node.js 22
-│   └── test-helpers.ts # Unit test utilities & mocks
 └── unit/               # Unit Tests Only
     ├── domain/         # Domain layer tests
-    │   ├── core/       # Core domain primitive tests
-    │   ├── campaign/   # Campaign entity tests
-    │   └── dashboard-campaign-info/ # Dashboard campaign info tests
-    ├── application/    # Application service tests
-    │   └── services/   # Service layer unit tests
-    └── infrastructure/ # Infrastructure tests
-        ├── mappers/    # Data mapper tests
-        └── repositories/ # Repository unit tests
+    ├── application/    # Application layer tests
+    └── infrastructure/ # Infrastructure layer tests
 
-ops/                    # Operations & Deployment
-├── docker/            # Docker configurations
-│   ├── dev/          # Development environment
-│   │   ├── dockerfile # Development Dockerfile
-│   │   └── docker-compose.yml # Dev services
-│   └── prod/         # Production environment
-│       └── dockerfile # Production Dockerfile
-└── scripts/          # Deployment scripts
+ops/                     # Operations & Infrastructure
+├── docker/             # Docker configuration
+│   ├── dev/           # Development environment
+│   │   ├── dockerfile
+│   │   └── docker-compose.yml
+│   └── prod/          # Production environment
+│       └── dockerfile
+
+Configuration Files:
+├── .dockerignore       # Docker ignore patterns
+├── .env.example        # Environment variables template
+├── .gitignore         # Git ignore patterns
+├── makefile           # Make commands for Docker operations
+├── package.json       # Node.js dependencies & scripts
+├── pnpm-lock.yaml    # Lock file for pnpm
+├── tsconfig.json      # TypeScript configuration
+└── vitest.config.ts   # Vitest test configuration
 ```
-
-## 🎯 Domain-Driven Design
-
-This project implements **Domain-Driven Design (DDD)** principles:
-
-### Core Concepts
-
-- **Entities**: Objects with identity that persist over time
-- **Value Objects**: Immutable objects defined by their attributes
-- **Aggregates**: Clusters of domain objects with consistency boundaries
-- **Domain Events**: Signals that something important happened in the domain
-- **Repositories**: Abstractions for data access
-- **Services**: Domain logic that doesn't belong to entities
-
-### Bounded Contexts
-
-- **Campaign Management**: Core campaign lifecycle and properties
-- **Dashboard Content**: User-submitted campaign information and approval workflow
 
 ## 🧪 Testing Strategy
 
-### Focus: Domain Layer Testing
+### Unit Testing Approach
 
-This project prioritizes **domain layer testing** to ensure business logic correctness:
+- **Framework**: Vitest with Node.js 22 optimizations
+- **Focus**: Domain layer and business logic
+- **Coverage Target**: 85%+ for core components
+- **Test Files**: Located in `tests/unit/` directory
+
+### Test Commands
 
 ```bash
-# Run all domain tests
+# Run all unit tests
+pnpm test
+
+# Domain layer tests
 pnpm test:domain
 
-# Run specific test categories
-pnpm test:services      # Application services
-pnpm test:mappers       # Data mappers
-pnpm test:repos         # Repository implementations
+# Application services
+pnpm test:services
+
+# Data mappers
+pnpm test:mappers
+
+# Repository implementations
+pnpm test:repos
 
 # Test with coverage (focused on business logic)
+pnpm test:coverage
 pnpm test:coverage:domain
 
 # Interactive testing
 pnpm test:ui
+
+# Watch mode for development
+pnpm test:watch
 ```
 
 ### Test Structure
@@ -220,20 +212,48 @@ pnpm start             # Start production server
 pnpm lint              # ESLint checking
 pnpm lint:fix          # Fix ESLint issues
 pnpm format            # Format with Prettier
+pnpm format:check      # Check formatting
 pnpm type-check        # TypeScript type checking
 
 # Testing (Domain-focused)
 pnpm test              # Run all unit tests
 pnpm test:domain       # Domain layer tests only
+pnpm test:services     # Application services tests
+pnpm test:mappers      # Infrastructure mappers tests
+pnpm test:repos        # Repository tests
 pnpm test:coverage     # Coverage report
+pnpm test:coverage:domain # Domain coverage
 pnpm test:ui           # Interactive test UI
 pnpm test:watch        # Watch mode
+
+# Database
+pnpm db:migrate        # Run migrations
+pnpm db:seed          # Seed database
 
 # Docker Development
 make dev-up            # Start development environment
 make dev-down          # Stop development environment
+make dev-restart       # Restart development environment
 make dev-logs          # View container logs
+make dev-logs-all      # View all container logs
+make dev-logs-mysql    # View MySQL logs
 make dev-shell         # Access container shell
+make dev-db-shell      # Access MySQL shell
+make dev-clean-volumes # Clean Docker volumes (WARNING: Deletes data!)
+make dev-fix-mysql     # Fix MySQL connection issues
+
+# Docker Production
+make prod-build        # Build production image
+make prod-run         # Run production container
+make prod-stop        # Stop production container
+make prod-logs        # View production logs
+
+# Utility Commands
+make clean            # Clean up all containers and images
+make status           # Show container status
+make prune           # Prune Docker system
+make install         # Install dependencies
+make build           # Build TypeScript
 ```
 
 ## 📊 API Documentation
@@ -257,6 +277,7 @@ make dev-shell         # Access container shell
 - **Prettier**: Code formatting with import sorting
 - **Husky**: Git hooks for quality gates
 - **Commitizen**: Conventional commit messages
+- **Lint-staged**: Pre-commit hooks
 
 ### Git Workflow
 
@@ -301,6 +322,27 @@ make prod-run
 - Redis availability
 - Memory usage monitoring
 - Response time tracking
+
+## 📦 Key Dependencies
+
+### Core
+
+- **fastify**: ^5.4.0 - High-performance web framework
+- **tsyringe**: ^4.10.0 - Dependency injection container
+- **sequelize**: ^6.37.7 - ORM for MySQL
+- **redis**: ^5.8.0 - Caching layer
+- **pino**: ^9.7.0 - High-performance logger
+- **zod**: ^4.0.14 - Schema validation
+- **jsonwebtoken**: ^9.0.2 - JWT authentication
+- **oxide.ts**: ^1.1.0 - Result/Option types for functional error handling
+
+### Development
+
+- **typescript**: ^5.7.3 - Latest TypeScript version
+- **vitest**: ^3.2.4 - Modern test runner
+- **tsx**: ^4.20.3 - TypeScript execution
+- **eslint**: ^9.18.0 - Code linting
+- **prettier**: ^3.4.2 - Code formatting
 
 ---
 
