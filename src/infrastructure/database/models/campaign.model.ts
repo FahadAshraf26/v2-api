@@ -288,5 +288,46 @@ export const CampaignSchema = {
         onUpdate: 'CASCADE',
       },
     },
+    DashboardSocials: {
+      type: 'hasOne',
+      target: 'DashboardSocials',
+      options: {
+        foreignKey: 'campaignId',
+        sourceKey: 'campaignId',
+        as: 'dashboardSocials',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+      },
+    },
+    Tag: {
+      type: 'belongsToMany',
+      target: 'Tag',
+      through: 'CampaignTag',
+      options: {
+        foreignKey: 'campaignId',
+        otherKey: 'tagId',
+        as: 'tags',
+      },
+    },
+    CampaignInfo: {
+      type: 'hasOne',
+      target: 'CampaignInfo',
+      options: {
+        foreignKey: 'campaignId',
+        sourceKey: 'campaignId',
+        as: 'campaignInfo',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+      },
+    },
+    RoughBudget: {
+      type: 'hasMany',
+      target: 'RoughBudget',
+      options: {
+        foreignKey: 'campaignId',
+        sourceKey: 'campaignId',
+        as: 'roughBudgets',
+      },
+    },
   },
 } as const;

@@ -57,6 +57,15 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
     return this.mapper.toBusinessPersistenceCriteria(domainCriteria);
   }
 
+  protected override mapDomainUpdatesToPersistence(
+    updates: Partial<DashboardCampaignInfo>
+  ): Record<string, any> {
+    if (updates instanceof DashboardCampaignInfo) {
+      return this.mapper.toBusinessPersistenceUpdate(updates);
+    }
+    return super.mapDomainUpdatesToPersistence(updates);
+  }
+
   /**
    * Find dashboard campaign info by campaign ID (legacy method for business data only)
    */

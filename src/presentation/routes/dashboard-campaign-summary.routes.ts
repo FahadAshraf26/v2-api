@@ -196,6 +196,37 @@ export default async function dashboardCampaignSummaryRoutes(
   );
 
   fastify.get(
+    '/campaign/slug/:campaignSlug',
+    {
+      preHandler: authenticateUserOrAdmin,
+      schema: {
+        description: 'Get dashboard campaign summary by campaign slug',
+        tags: ['Dashboard Campaign Summary'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          properties: {
+            campaignSlug: { type: 'string' },
+          },
+          required: ['campaignSlug'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: dashboardCampaignSummarySchema,
+            },
+          },
+          404: errorSchema,
+          500: errorSchema,
+        },
+      },
+    },
+    (req, reply) => controller.getByCampaignSlug(req as any, reply)
+  );
+
+  fastify.get(
     '/admin/pending',
     {
       preHandler: authenticateAdmin,

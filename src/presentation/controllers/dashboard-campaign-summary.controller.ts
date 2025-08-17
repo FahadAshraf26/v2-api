@@ -1,19 +1,25 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { injectable, inject } from 'tsyringe';
+import { FastifyReply, FastifyRequest } from 'fastify';
+import { inject, injectable } from 'tsyringe';
+
 import { DashboardCampaignSummaryService } from '@/application/services/dashboard-campaign-summary.service';
+
 import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
+
 import { BaseController } from '@/presentation/controllers/base.controller';
-import { ErrorConverter } from '@/shared/utils/error-converter';
+
 import {
-  NotFoundError,
   ConflictError,
   ForbiddenError,
+  NotFoundError,
   ValidationError,
 } from '@/shared/errors';
+import { ErrorConverter } from '@/shared/utils/error-converter';
+import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
+
 import {
   CreateDashboardCampaignSummaryRequest,
   GetByCampaignIdRequest,
+  GetByCampaignSlugRequest,
   GetDashboardCampaignSummaryRequest,
   ReviewDashboardCampaignSummaryDto,
   ReviewDashboardCampaignSummaryRequest,
@@ -36,7 +42,8 @@ export class DashboardCampaignSummaryController extends BaseController {
    * POST /api/v2/dashboard-campaign-summary
    */
   async create(
-    request: FastifyRequest<CreateDashboardCampaignSummaryRequest> & AuthenticatedRequest,
+    request: FastifyRequest<CreateDashboardCampaignSummaryRequest> &
+      AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
     const userId = this.requireAuth(request);
@@ -48,8 +55,11 @@ export class DashboardCampaignSummaryController extends BaseController {
     }
 
     const dashboardSummary = result.unwrap();
-    return this.created(reply, dashboardSummary.toObject(),
-      'Dashboard campaign summary created successfully');
+    return this.created(
+      reply,
+      dashboardSummary.toObject(),
+      'Dashboard campaign summary created successfully'
+    );
   }
 
   /**
@@ -57,7 +67,8 @@ export class DashboardCampaignSummaryController extends BaseController {
    * PUT /api/v2/dashboard-campaign-summary/:id
    */
   async update(
-    request: FastifyRequest<UpdateDashboardCampaignSummaryRequest> & AuthenticatedRequest,
+    request: FastifyRequest<UpdateDashboardCampaignSummaryRequest> &
+      AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
     const userId = this.requireAuth(request);
@@ -70,8 +81,11 @@ export class DashboardCampaignSummaryController extends BaseController {
     }
 
     const dashboardSummary = result.unwrap();
-    return this.ok(reply, dashboardSummary.toObject(),
-      'Dashboard campaign summary updated successfully');
+    return this.ok(
+      reply,
+      dashboardSummary.toObject(),
+      'Dashboard campaign summary updated successfully'
+    );
   }
 
   /**
@@ -79,7 +93,8 @@ export class DashboardCampaignSummaryController extends BaseController {
    * POST /api/v2/dashboard-campaign-summary/:id/submit
    */
   async submit(
-    request: FastifyRequest<SubmitDashboardCampaignSummaryRequest> & AuthenticatedRequest,
+    request: FastifyRequest<SubmitDashboardCampaignSummaryRequest> &
+      AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
     const userId = this.requireAuth(request);
@@ -92,8 +107,11 @@ export class DashboardCampaignSummaryController extends BaseController {
     }
 
     const dashboardSummary = result.unwrap();
-    return this.ok(reply, dashboardSummary.toObject(),
-      'Dashboard campaign summary submitted for review successfully');
+    return this.ok(
+      reply,
+      dashboardSummary.toObject(),
+      'Dashboard campaign summary submitted for review successfully'
+    );
   }
 
   /**
@@ -101,7 +119,8 @@ export class DashboardCampaignSummaryController extends BaseController {
    * POST /api/v2/dashboard-campaign-summary/:id/review
    */
   async review(
-    request: FastifyRequest<ReviewDashboardCampaignSummaryRequest> & AuthenticatedRequest,
+    request: FastifyRequest<ReviewDashboardCampaignSummaryRequest> &
+      AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
     const adminId = this.requireAdmin(request);
@@ -119,8 +138,11 @@ export class DashboardCampaignSummaryController extends BaseController {
     }
 
     const dashboardSummary = result.unwrap();
-    return this.ok(reply, dashboardSummary.toObject(),
-      `Dashboard campaign summary ${reviewDto.action}d successfully`);
+    return this.ok(
+      reply,
+      dashboardSummary.toObject(),
+      `Dashboard campaign summary ${reviewDto.action}d successfully`
+    );
   }
 
   /**
@@ -128,7 +150,8 @@ export class DashboardCampaignSummaryController extends BaseController {
    * GET /api/v2/dashboard-campaign-summary/:id
    */
   async getById(
-    request: FastifyRequest<GetDashboardCampaignSummaryRequest> & AuthenticatedRequest,
+    request: FastifyRequest<GetDashboardCampaignSummaryRequest> &
+      AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
     this.requireAuth(request);
@@ -167,7 +190,38 @@ export class DashboardCampaignSummaryController extends BaseController {
 
     const dashboardSummary = result.unwrap();
     if (!dashboardSummary) {
-      throw new NotFoundError('Dashboard campaign summary for campaign', campaignId);
+      throw new NotFoundError(
+        'Dashboard campaign summary for campaign',
+        campaignId
+      );
+    }
+
+    return this.ok(reply, dashboardSummary.toObject());
+  }
+
+  /**
+   * Get dashboard campaign summary by campaign slug
+   * GET /api/v2/dashboard-campaign-summary/campaign/:campaignSlug
+   */
+  async getByCampaignSlug(
+    request: FastifyRequest<GetByCampaignSlugRequest> & AuthenticatedRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    this.requireAuth(request);
+    const { campaignSlug } = request.params;
+
+    const result = await this.service.getByCampaignSlug(campaignSlug);
+
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
+
+    const dashboardSummary = result.unwrap();
+    if (!dashboardSummary) {
+      throw new NotFoundError(
+        'Dashboard campaign summary for campaign slug',
+        campaignSlug
+      );
     }
 
     return this.ok(reply, dashboardSummary.toObject());

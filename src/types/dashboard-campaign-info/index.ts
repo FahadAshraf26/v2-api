@@ -40,14 +40,14 @@ export interface DashboardCampaignInfoWithApproval {
 
 export interface CreateDashboardCampaignInfoDto {
   campaignId: string;
-  milestones?: string;
+  milestones?: string[];
   investorPitch?: string;
   isShowPitch?: boolean;
   investorPitchTitle?: string;
 }
 
 export interface UpdateDashboardCampaignInfoDto {
-  milestones?: string;
+  milestones?: string[];
   investorPitch?: string;
   isShowPitch?: boolean;
   investorPitchTitle?: string;
@@ -74,6 +74,10 @@ export interface GetDashboardCampaignInfoRequest {
 
 export interface GetByCampaignIdRequest {
   Params: { campaignId: string };
+}
+
+export interface GetByCampaignSlugRequest {
+  Params: { campaignSlug: string };
 }
 
 export interface SubmitDashboardCampaignInfoRequest {
@@ -110,7 +114,10 @@ export const createDashboardCampaignInfoSchema = {
   required: ['campaignId'],
   properties: {
     campaignId: { type: 'string', format: 'uuid' },
-    milestones: { type: 'string', minLength: 1 },
+    milestones: {
+      type: 'array',
+      items: { type: 'string' },
+    },
     investorPitch: { type: 'string', minLength: 1 },
     isShowPitch: { type: 'boolean' },
     investorPitchTitle: { type: 'string', minLength: 1 },
@@ -121,7 +128,10 @@ export const createDashboardCampaignInfoSchema = {
 export const updateDashboardCampaignInfoSchema = {
   type: 'object',
   properties: {
-    milestones: { type: 'string', minLength: 1 },
+    milestones: {
+      type: 'array',
+      items: { type: 'string' },
+    },
     investorPitch: { type: 'string', minLength: 1 },
     isShowPitch: { type: 'boolean' },
     investorPitchTitle: { type: 'string', minLength: 1 },

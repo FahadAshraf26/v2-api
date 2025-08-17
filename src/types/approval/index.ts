@@ -5,7 +5,8 @@ import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
  */
 export type EntityType =
   | 'dashboard-campaign-summary'
-  | 'dashboard-campaign-info';
+  | 'dashboard-campaign-info'
+  | 'dashboard-socials';
 
 /**
  * Simplified approval status type

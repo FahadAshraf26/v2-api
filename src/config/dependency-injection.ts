@@ -11,6 +11,7 @@ export const TOKENS = {
   UserControllerToken: Symbol.for('UserController'),
   CampaignMapperToken: Symbol.for('CampaignMapper'),
   CampaignRepositoryToken: Symbol.for('CampaignRepository'),
+  CampaignInfoRepositoryToken: Symbol.for('CampaignInfoRepository'),
   CampaignServiceToken: Symbol.for('CampaignService'),
   CampaignControllerToken: Symbol.for('CampaignController'),
   DashboardCampaignInfoMapperToken: Symbol.for('DashboardCampaignInfoMapper'),
@@ -21,6 +22,10 @@ export const TOKENS = {
   DashboardCampaignInfoControllerToken: Symbol.for(
     'DashboardCampaignInfoController'
   ),
+  DashboardSocialsMapperToken: Symbol.for('DashboardSocialsMapper'),
+  DashboardSocialsRepositoryToken: Symbol.for('DashboardSocialsRepository'),
+  DashboardSocialsServiceToken: Symbol.for('DashboardSocialsService'),
+  DashboardSocialsControllerToken: Symbol.for('DashboardSocialsController'),
 } as const;
 
 export const setupDependencyInjection = async (): Promise<void> => {
@@ -44,6 +49,9 @@ export const setupDependencyInjection = async (): Promise<void> => {
   const { CampaignRepository } = await import(
     '@/infrastructure/repositories/campaign.repository'
   );
+  const { CampaignInfoRepository } = await import(
+    '@/infrastructure/repositories/campaign-info.repository'
+  );
   const { DashboardCampaignInfoMapper } = await import(
     '@/infrastructure/mappers/dashboard-campaign-info.mapper'
   );
@@ -55,6 +63,18 @@ export const setupDependencyInjection = async (): Promise<void> => {
   );
   const { DashboardCampaignInfoController } = await import(
     '@/presentation/controllers/dashboard-campaign-info.controller'
+  );
+  const { DashboardSocialsMapper } = await import(
+    '@/infrastructure/mappers/dashboard-socials.mapper'
+  );
+  const { DashboardSocialsRepository } = await import(
+    '@/infrastructure/repositories/dashboard-socials.repository'
+  );
+  const { DashboardSocialsService } = await import(
+    '@/application/services/dashboard-socials.service'
+  );
+  const { DashboardSocialsController } = await import(
+    '@/presentation/controllers/dashboard-socials.controller'
   );
 
   // Core services
@@ -75,6 +95,10 @@ export const setupDependencyInjection = async (): Promise<void> => {
     TOKENS.CampaignRepositoryToken,
     CampaignRepository
   );
+  container.registerSingleton(
+    TOKENS.CampaignInfoRepositoryToken,
+    CampaignInfoRepository
+  );
 
   // Dashboard Campaign Info feature
   container.registerSingleton(
@@ -92,5 +116,23 @@ export const setupDependencyInjection = async (): Promise<void> => {
   container.registerSingleton(
     TOKENS.DashboardCampaignInfoControllerToken,
     DashboardCampaignInfoController
+  );
+
+  // Dashboard Socials feature
+  container.registerSingleton(
+    TOKENS.DashboardSocialsMapperToken,
+    DashboardSocialsMapper
+  );
+  container.registerSingleton(
+    TOKENS.DashboardSocialsRepositoryToken,
+    DashboardSocialsRepository
+  );
+  container.registerSingleton(
+    TOKENS.DashboardSocialsServiceToken,
+    DashboardSocialsService
+  );
+  container.registerSingleton(
+    TOKENS.DashboardSocialsControllerToken,
+    DashboardSocialsController
   );
 };

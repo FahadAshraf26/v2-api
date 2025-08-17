@@ -80,6 +80,10 @@ export interface GetByCampaignIdRequest {
   Params: { campaignId: string };
 }
 
+export interface GetByCampaignSlugRequest {
+  Params: { campaignSlug: string };
+}
+
 export interface SubmitDashboardCampaignSummaryRequest {
   Params: { id: string };
 }

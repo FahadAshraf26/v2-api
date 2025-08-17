@@ -1,14 +1,22 @@
-import { injectable, inject } from 'tsyringe';
-import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { TOKENS } from '@/config/dependency-injection';
+import { inject, injectable } from 'tsyringe';
 import { container } from 'tsyringe';
 
+import { TOKENS } from '@/config/dependency-injection';
+
+import { LoggerService } from '@/infrastructure/logging/logger.service';
+import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
+
+import { CampaignInfoSchema } from './models/campaign-info.model';
+import { CampaignTagSchema } from './models/campaign-tag.model';
+import { CampaignSchema } from './models/campaign.model';
+import { DashboardApprovalsSchema } from './models/dashboard-approvals.model';
 // Import all model schemas
 import { DashboardCampaignInfoSchema } from './models/dashboard-campaign-info.model';
 import { DashboardCampaignSummarySchema } from './models/dashboard-campaign-summary.model';
-import { CampaignSchema } from './models/campaign.model';
-import { DashboardApprovalSchema } from './models/dashboardApproval.model';
+import { DashboardSocialsSchema } from './models/dashboard-socials.model';
+import { RoughBudgetSchema } from './models/rough-budget.model';
+import { TagCategoriesSchema } from './models/tag-categories';
+import { TagSchema } from './models/tag.model';
 
 @injectable()
 export class ModelRegistryService {
@@ -27,11 +35,21 @@ export class ModelRegistryService {
 
       // Register all schemas
       const schemas = [
+        // Core schemas
         CampaignSchema,
+        CampaignInfoSchema,
+        RoughBudgetSchema,
+
+        // Tag-related schemas
+        TagCategoriesSchema,
+        TagSchema,
+        CampaignTagSchema,
+
+        // Dashboard schemas
         DashboardCampaignInfoSchema,
         DashboardCampaignSummarySchema,
-        DashboardApprovalSchema,
-        // Add other model schemas here as they are created
+        DashboardSocialsSchema,
+        DashboardApprovalsSchema,
       ];
 
       for (const schema of schemas) {
@@ -72,6 +90,17 @@ export class ModelRegistryService {
   getRegisteredModels(): string[] {
     // This would need to be implemented in the ORM adapter interface
     // For now, return the known model names
-    return ['Campaign', 'DashboardCampaignInfo'];
+    return [
+      'Campaign',
+      'CampaignInfo',
+      'RoughBudget',
+      'TagCategories',
+      'Tag',
+      'CampaignTag',
+      'DashboardCampaignInfo',
+      'DashboardCampaignSummary',
+      'DashboardSocials',
+      'DashboardApprovals',
+    ];
   }
 }

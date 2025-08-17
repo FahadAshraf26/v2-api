@@ -105,7 +105,7 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
 
   await app.register(import('@fastify/cors'), {
     origin: config.CORS_ORIGIN,
-    credentials: true,
+    credentials: false,
   });
 
   await app.register(import('@fastify/rate-limit'), {

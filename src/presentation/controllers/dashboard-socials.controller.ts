@@ -1,48 +1,43 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { inject, injectable } from 'tsyringe';
 
-import { DashboardCampaignInfoService } from '@/application/services/dashboard-campaign-info.service';
+import { DashboardSocialsService } from '@/application/services/dashboard-socials.service';
 
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 
 import { BaseController } from '@/presentation/controllers/base.controller';
 
-import {
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from '@/shared/errors';
+import { NotFoundError } from '@/shared/errors';
 import { ErrorConverter } from '@/shared/utils/error-converter';
 import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
 
 import {
-  CreateDashboardCampaignInfoRequest,
+  CreateDashboardSocialsRequest,
   GetByCampaignIdRequest,
   GetByCampaignSlugRequest,
-  GetDashboardCampaignInfoRequest,
-  ReviewDashboardCampaignInfoDto,
-  ReviewDashboardCampaignInfoRequest,
-  SubmitDashboardCampaignInfoRequest,
-  UpdateDashboardCampaignInfoRequest,
-} from '@/types/dashboard-campaign-info';
+  GetDashboardSocialsRequest,
+  ReviewDashboardSocialsDto,
+  ReviewDashboardSocialsRequest,
+  SubmitDashboardSocialsRequest,
+  UpdateDashboardSocialsRequest,
+} from '@/types/dashboard-socials';
 
 @injectable()
-export class DashboardCampaignInfoController extends BaseController {
+export class DashboardSocialsController extends BaseController {
   constructor(
-    @inject(DashboardCampaignInfoService)
-    private readonly service: DashboardCampaignInfoService,
+    @inject(DashboardSocialsService)
+    private readonly service: DashboardSocialsService,
     @inject(LoggerService) logger: LoggerService
   ) {
     super(logger);
   }
 
   /**
-   * Create new dashboard campaign info
-   * POST /api/v2/dashboard-campaign-info
+   * Create new dashboard socials
+   * POST /api/v2/dashboard-socials
    */
   async create(
-    request: FastifyRequest<CreateDashboardCampaignInfoRequest> &
+    request: FastifyRequest<CreateDashboardSocialsRequest> &
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
@@ -54,20 +49,20 @@ export class DashboardCampaignInfoController extends BaseController {
       throw ErrorConverter.fromResult(result);
     }
 
-    const dashboardInfo = result.unwrap();
+    const dashboardSocials = result.unwrap();
     return this.created(
       reply,
-      dashboardInfo.toObject(),
-      'Dashboard campaign info created successfully'
+      dashboardSocials.toObject(),
+      'Dashboard socials created successfully'
     );
   }
 
   /**
-   * Update dashboard campaign info
-   * PUT /api/v2/dashboard-campaign-info/:id
+   * Update dashboard socials
+   * PUT /api/v2/dashboard-socials/:id
    */
   async update(
-    request: FastifyRequest<UpdateDashboardCampaignInfoRequest> &
+    request: FastifyRequest<UpdateDashboardSocialsRequest> &
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
@@ -80,20 +75,20 @@ export class DashboardCampaignInfoController extends BaseController {
       throw ErrorConverter.fromResult(result);
     }
 
-    const dashboardInfo = result.unwrap();
+    const dashboardSocials = result.unwrap();
     return this.ok(
       reply,
-      dashboardInfo.toObject(),
-      'Dashboard campaign info updated successfully'
+      dashboardSocials.toObject(),
+      'Dashboard socials updated successfully'
     );
   }
 
   /**
-   * Submit dashboard campaign info for review
-   * POST /api/v2/dashboard-campaign-info/:id/submit
+   * Submit dashboard socials for review
+   * POST /api/v2/dashboard-socials/:id/submit
    */
   async submit(
-    request: FastifyRequest<SubmitDashboardCampaignInfoRequest> &
+    request: FastifyRequest<SubmitDashboardSocialsRequest> &
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
@@ -106,27 +101,27 @@ export class DashboardCampaignInfoController extends BaseController {
       throw ErrorConverter.fromResult(result);
     }
 
-    const dashboardInfo = result.unwrap();
+    const dashboardSocials = result.unwrap();
     return this.ok(
       reply,
-      dashboardInfo.toObject(),
-      'Dashboard campaign info submitted for review successfully'
+      dashboardSocials.toObject(),
+      'Dashboard socials submitted for review successfully'
     );
   }
 
   /**
-   * Review dashboard campaign info (admin only)
-   * POST /api/v2/dashboard-campaign-info/:id/review
+   * Review dashboard socials (admin only)
+   * POST /api/v2/dashboard-socials/:id/review
    */
   async review(
-    request: FastifyRequest<ReviewDashboardCampaignInfoRequest> &
+    request: FastifyRequest<ReviewDashboardSocialsRequest> &
       AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
     const adminId = this.requireAdmin(request);
     const { id } = request.params;
 
-    const reviewDto: ReviewDashboardCampaignInfoDto = {
+    const reviewDto: ReviewDashboardSocialsDto = {
       ...request.body,
       adminId,
     };
@@ -137,21 +132,20 @@ export class DashboardCampaignInfoController extends BaseController {
       throw ErrorConverter.fromResult(result);
     }
 
-    const dashboardInfo = result.unwrap();
+    const dashboardSocials = result.unwrap();
     return this.ok(
       reply,
-      dashboardInfo.toObject(),
-      `Dashboard campaign info ${reviewDto.action}d successfully`
+      dashboardSocials.toObject(),
+      `Dashboard socials ${reviewDto.action}d successfully`
     );
   }
 
   /**
-   * Get dashboard campaign info by ID
-   * GET /api/v2/dashboard-campaign-info/:id
+   * Get dashboard socials by ID
+   * GET /api/v2/dashboard-socials/:id
    */
   async getById(
-    request: FastifyRequest<GetDashboardCampaignInfoRequest> &
-      AuthenticatedRequest,
+    request: FastifyRequest<GetDashboardSocialsRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
     this.requireAuth(request);
@@ -163,17 +157,17 @@ export class DashboardCampaignInfoController extends BaseController {
       throw ErrorConverter.fromResult(result);
     }
 
-    const dashboardInfo = result.unwrap();
-    if (!dashboardInfo) {
-      throw new NotFoundError('Dashboard campaign info', id);
+    const dashboardSocials = result.unwrap();
+    if (!dashboardSocials) {
+      throw new NotFoundError('Dashboard socials', id);
     }
 
-    return this.ok(reply, dashboardInfo.toObject());
+    return this.ok(reply, dashboardSocials.toObject());
   }
 
   /**
-   * Get dashboard campaign info by campaign ID
-   * GET /api/v2/dashboard-campaign-info/campaign/:campaignId
+   * Get dashboard socials by campaign ID
+   * GET /api/v2/dashboard-socials/campaign/:campaignId
    */
   async getByCampaignId(
     request: FastifyRequest<GetByCampaignIdRequest> & AuthenticatedRequest,
@@ -188,20 +182,17 @@ export class DashboardCampaignInfoController extends BaseController {
       throw ErrorConverter.fromResult(result);
     }
 
-    const dashboardInfo = result.unwrap();
-    if (!dashboardInfo) {
-      throw new NotFoundError(
-        'Dashboard campaign info for campaign',
-        campaignId
-      );
+    const dashboardSocials = result.unwrap();
+    if (!dashboardSocials) {
+      throw new NotFoundError('Dashboard socials for campaign', campaignId);
     }
 
-    return this.ok(reply, dashboardInfo.toObject());
+    return this.ok(reply, dashboardSocials.toObject());
   }
 
   /**
-   * Get dashboard campaign info by campaign slug
-   * GET /api/v2/dashboard-campaign-info/campaign/slug/:campaignSlug
+   * Get dashboard socials by campaign slug
+   * GET /api/v2/dashboard-socials/campaign/slug/:campaignSlug
    */
   async getByCampaignSlug(
     request: FastifyRequest<GetByCampaignSlugRequest> & AuthenticatedRequest,
@@ -216,20 +207,20 @@ export class DashboardCampaignInfoController extends BaseController {
       throw ErrorConverter.fromResult(result);
     }
 
-    const dashboardInfo = result.unwrap();
-    if (!dashboardInfo) {
+    const dashboardSocials = result.unwrap();
+    if (!dashboardSocials) {
       throw new NotFoundError(
-        'Dashboard campaign info for campaign slug',
+        'Dashboard socials for campaign slug',
         campaignSlug
       );
     }
 
-    return this.ok(reply, dashboardInfo.toObject());
+    return this.ok(reply, dashboardSocials.toObject());
   }
 
   /**
-   * Get pending dashboard campaign infos for admin review
-   * GET /api/v2/dashboard-campaign-info/admin/pending
+   * Get pending dashboard socials for admin review
+   * GET /api/v2/dashboard-socials/admin/pending
    */
   async getPendingForReview(
     request: FastifyRequest & AuthenticatedRequest,
@@ -251,8 +242,8 @@ export class DashboardCampaignInfoController extends BaseController {
   }
 
   /**
-   * Get user's dashboard campaign infos
-   * GET /api/v2/dashboard-campaign-info/user/my-submissions
+   * Get user's dashboard socials
+   * GET /api/v2/dashboard-socials/user/my-submissions
    */
   async getMySubmissions(
     request: FastifyRequest & AuthenticatedRequest,
@@ -271,5 +262,25 @@ export class DashboardCampaignInfoController extends BaseController {
       data: userItems.map(item => item.toObject()),
       count: userItems.length,
     });
+  }
+
+  /**
+   * Get dashboard socials statistics (admin only)
+   * GET /api/v2/dashboard-socials/admin/statistics
+   */
+  async getStatistics(
+    request: FastifyRequest & AuthenticatedRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    this.requireAdmin(request);
+
+    const result = await this.service.getStatistics();
+
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
+
+    const statistics = result.unwrap();
+    return this.ok(reply, statistics);
   }
 }

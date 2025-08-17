@@ -57,6 +57,15 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
     return this.mapper.toBusinessPersistenceCriteria(domainCriteria);
   }
 
+  protected override mapDomainUpdatesToPersistence(
+    updates: Partial<DashboardCampaignSummary>
+  ): Record<string, any> {
+    if (updates instanceof DashboardCampaignSummary) {
+      return this.mapper.toBusinessPersistenceUpdate(updates);
+    }
+    return super.mapDomainUpdatesToPersistence(updates);
+  }
+
   /**
    * Find dashboard campaign summary with approval data by ID
    */

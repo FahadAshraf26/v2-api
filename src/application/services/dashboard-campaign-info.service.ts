@@ -1,16 +1,24 @@
-import { injectable, inject } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
-import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
-import { DashboardCampaignInfoRepository } from '@/infrastructure/repositories/dashboard-campaign-info.repository';
-import { DashboardApprovalRepository } from '@/infrastructure/repositories/dashboard-approval.repository';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { randomUUID } from 'crypto';
+import { Err, Ok, Result } from 'oxide.ts';
+import { inject, injectable } from 'tsyringe';
+
+import { TOKENS } from '@/config/dependency-injection';
+
+import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
+
+import { LoggerService } from '@/infrastructure/logging/logger.service';
+import { CampaignInfoRepository } from '@/infrastructure/repositories/campaign-info.repository';
+import { CampaignRepository } from '@/infrastructure/repositories/campaign.repository';
+import { DashboardApprovalRepository } from '@/infrastructure/repositories/dashboard-approval.repository';
+import { DashboardCampaignInfoRepository } from '@/infrastructure/repositories/dashboard-campaign-info.repository';
+
+import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
+
 import {
   CreateDashboardCampaignInfoDto,
   ReviewDashboardCampaignInfoDto,
   UpdateDashboardCampaignInfoDto,
 } from '@/types/dashboard-campaign-info';
-import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
 @injectable()
 export class DashboardCampaignInfoService {
@@ -19,8 +27,24 @@ export class DashboardCampaignInfoService {
     private readonly repository: DashboardCampaignInfoRepository,
     @inject(DashboardApprovalRepository)
     private readonly approvalRepository: DashboardApprovalRepository,
+    @inject(TOKENS.CampaignInfoRepositoryToken)
+    private readonly campaignInfoRepository: CampaignInfoRepository,
+    @inject(TOKENS.CampaignRepositoryToken)
+    private readonly campaignRepository: CampaignRepository,
     @inject(LoggerService) private readonly logger: LoggerService
   ) {}
+
+  /**
+   * Convert milestones from array to JSON string for storage
+   */
+  private convertMilestonesToString(
+    milestones: string[] | string | undefined
+  ): string | undefined {
+    if (!milestones) return undefined;
+    if (typeof milestones === 'string') return milestones; // backward compatibility
+    if (Array.isArray(milestones)) return JSON.stringify(milestones);
+    return undefined;
+  }
 
   /**
    * Create new dashboard campaign info
@@ -36,14 +60,18 @@ export class DashboardCampaignInfoService {
       });
 
       // Check if info already exists for this campaign
-      const existingResult = await this.repository.findByCampaignIdWithApproval(dto.campaignId);
+      const existingResult = await this.repository.findByCampaignIdWithApproval(
+        dto.campaignId
+      );
       if (existingResult.isErr()) {
         return Err(existingResult.unwrapErr());
       }
 
       const existing = existingResult.unwrap();
       if (existing) {
-        return Err(new Error('Dashboard campaign info already exists for this campaign'));
+        return Err(
+          new Error('Dashboard campaign info already exists for this campaign')
+        );
       }
 
       // Create the business entity
@@ -54,7 +82,7 @@ export class DashboardCampaignInfoService {
       };
 
       if (dto.milestones) {
-        createProps.milestones = dto.milestones;
+        createProps.milestones = this.convertMilestonesToString(dto.milestones);
       }
       if (dto.investorPitch) {
         createProps.investorPitch = dto.investorPitch;
@@ -85,9 +113,14 @@ export class DashboardCampaignInfoService {
 
       return Ok(saveResult.unwrap());
     } catch (error) {
-      this.logger.error('Error creating dashboard campaign info', error as Error);
+      this.logger.error(
+        'Error creating dashboard campaign info',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to create dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to create dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -119,8 +152,34 @@ export class DashboardCampaignInfoService {
         return Err(new Error('Cannot edit approved dashboard campaign info'));
       }
 
+      // Convert milestones if provided and prepare update data
+      const updateData: {
+        milestones?: string;
+        investorPitch?: string;
+        isShowPitch?: boolean;
+        investorPitchTitle?: string;
+      } = {};
+
+      if (dto.milestones !== undefined) {
+        const convertedMilestones = this.convertMilestonesToString(
+          dto.milestones
+        );
+        if (convertedMilestones !== undefined) {
+          updateData.milestones = convertedMilestones;
+        }
+      }
+      if (dto.investorPitch !== undefined) {
+        updateData.investorPitch = dto.investorPitch;
+      }
+      if (dto.isShowPitch !== undefined) {
+        updateData.isShowPitch = dto.isShowPitch;
+      }
+      if (dto.investorPitchTitle !== undefined) {
+        updateData.investorPitchTitle = dto.investorPitchTitle;
+      }
+
       // Update the info
-      const updateResult = info.update(dto);
+      const updateResult = info.update(updateData);
       if (updateResult.isErr()) {
         return Err(updateResult.unwrapErr());
       }
@@ -135,9 +194,14 @@ export class DashboardCampaignInfoService {
 
       return Ok(saveResult.unwrap());
     } catch (error) {
-      this.logger.error('Error updating dashboard campaign info', error as Error);
+      this.logger.error(
+        'Error updating dashboard campaign info',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to update dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to update dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -150,7 +214,10 @@ export class DashboardCampaignInfoService {
     userId: string
   ): Promise<Result<DashboardCampaignInfo, Error>> {
     try {
-      this.logger.info('Submitting dashboard campaign info for approval', { id, userId });
+      this.logger.info('Submitting dashboard campaign info for approval', {
+        id,
+        userId,
+      });
 
       // Use the repository method that coordinates with approval table
       const submitResult = await this.repository.submitForApproval(id, userId);
@@ -158,13 +225,20 @@ export class DashboardCampaignInfoService {
         return Err(submitResult.unwrapErr());
       }
 
-      this.logger.info('Dashboard campaign info submitted successfully', { id });
+      this.logger.info('Dashboard campaign info submitted successfully', {
+        id,
+      });
 
       return Ok(submitResult.unwrap());
     } catch (error) {
-      this.logger.error('Error submitting dashboard campaign info', error as Error);
+      this.logger.error(
+        'Error submitting dashboard campaign info',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to submit dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to submit dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -196,7 +270,9 @@ export class DashboardCampaignInfoService {
 
       // Check if it's in pending status
       if (dashboardInfo.status !== ApprovalStatus.PENDING) {
-        return Err(new Error('Can only review pending dashboard campaign infos'));
+        return Err(
+          new Error('Can only review pending dashboard campaign infos')
+        );
       }
 
       // Review the approval in the approval table
@@ -238,9 +314,14 @@ export class DashboardCampaignInfoService {
 
       return Ok(updatedResult.unwrap()!);
     } catch (error) {
-      this.logger.error('Error reviewing dashboard campaign info', error as Error);
+      this.logger.error(
+        'Error reviewing dashboard campaign info',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to review dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to review dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -261,32 +342,163 @@ export class DashboardCampaignInfoService {
 
       return Ok(result.unwrap());
     } catch (error) {
-      this.logger.error('Error getting dashboard campaign info', error as Error);
+      this.logger.error(
+        'Error getting dashboard campaign info',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to get dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to get dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
 
   /**
-   * Get dashboard campaign info by campaign ID
+   * Get dashboard campaign info by campaign ID with fallback to main campaign tables
    */
   async getByCampaignId(
     campaignId: string
   ): Promise<Result<DashboardCampaignInfo | null, Error>> {
     try {
-      this.logger.debug('Getting dashboard campaign info by campaign ID', { campaignId });
+      this.logger.debug(
+        'Getting dashboard campaign info by campaign ID with fallback',
+        {
+          campaignId,
+        }
+      );
 
-      const result = await this.repository.findByCampaignIdWithApproval(campaignId);
-      if (result.isErr()) {
-        return Err(result.unwrapErr());
+      // First, try to get data from dashboard table
+      const dashboardResult =
+        await this.repository.findByCampaignIdWithApproval(campaignId);
+      if (dashboardResult.isErr()) {
+        return Err(dashboardResult.unwrapErr());
       }
 
-      return Ok(result.unwrap());
+      const dashboardData = dashboardResult.unwrap();
+      if (dashboardData) {
+        this.logger.debug('Found dashboard campaign info data', { campaignId });
+        return Ok(dashboardData);
+      }
+
+      // Fallback: Get data from main campaign and campaignInfo tables
+      this.logger.debug(
+        'No dashboard data found, falling back to main campaign tables',
+        { campaignId }
+      );
+
+      // Get campaign data
+      const campaignResult = await this.campaignRepository.findById(campaignId);
+      if (campaignResult.isErr()) {
+        return Err(campaignResult.unwrapErr());
+      }
+
+      const campaign = campaignResult.unwrap();
+      if (!campaign) {
+        this.logger.debug('No campaign found', { campaignId });
+        return Ok(null);
+      }
+
+      // Get campaign info data
+      const campaignInfoResult =
+        await this.campaignInfoRepository.findByCampaignId(campaignId);
+      if (campaignInfoResult.isErr()) {
+        return Err(campaignInfoResult.unwrapErr());
+      }
+
+      const campaignInfo = campaignInfoResult.unwrap();
+      if (!campaignInfo) {
+        this.logger.debug(
+          'No campaign info found, creating minimal dashboard data structure',
+          { campaignId }
+        );
+
+        // Create a minimal dashboard structure with campaign basic data
+        const props = {
+          id: randomUUID(),
+          campaignId: campaignId,
+          milestones: '',
+          investorPitch: '',
+          isShowPitch: false,
+          investorPitchTitle: '',
+          status: ApprovalStatus.PENDING,
+          submittedBy: '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const dashboardInfo = DashboardCampaignInfo.fromPersistence(props);
+        return Ok(dashboardInfo);
+      }
+
+      // Map campaignInfo data to dashboard structure
+      this.logger.debug('Found campaign info, mapping to dashboard structure', {
+        campaignId,
+      });
+      const props = {
+        id: campaignInfo.campaignInfoId,
+        campaignId: campaignId,
+        milestones: campaignInfo.milestones || '',
+        investorPitch: campaignInfo.investorPitch || '',
+        isShowPitch: campaignInfo.isShowPitch || false,
+        investorPitchTitle: campaignInfo.investorPitchTitle || '',
+        status: ApprovalStatus.APPROVED, // Main table data is already approved
+        submittedBy: '',
+        createdAt: campaignInfo.createdAt,
+        updatedAt: campaignInfo.updatedAt,
+      };
+
+      const dashboardInfo = DashboardCampaignInfo.fromPersistence(props);
+      return Ok(dashboardInfo);
     } catch (error) {
-      this.logger.error('Error getting dashboard campaign info by campaign ID', error as Error);
+      this.logger.error(
+        'Error getting dashboard campaign info by campaign ID',
+        error as Error
+      );
       return Err(
-        new Error(`Failed to get dashboard campaign info: ${(error as Error).message}`)
+        new Error(
+          `Failed to get dashboard campaign info: ${(error as Error).message}`
+        )
+      );
+    }
+  }
+
+  /**
+   * Get dashboard campaign info by campaign slug
+   */
+  async getByCampaignSlug(
+    campaignSlug: string
+  ): Promise<Result<DashboardCampaignInfo | null, Error>> {
+    try {
+      this.logger.debug('Getting dashboard campaign info by campaign slug', {
+        campaignSlug,
+      });
+
+      // First, find the campaign by slug to get the campaign ID
+      const campaignResult =
+        await this.campaignRepository.findBySlug(campaignSlug);
+      if (campaignResult.isErr()) {
+        return Err(campaignResult.unwrapErr());
+      }
+
+      const campaign = campaignResult.unwrap();
+      if (!campaign) {
+        this.logger.debug('No campaign found with slug', { campaignSlug });
+        return Ok(null);
+      }
+
+      // Now use the existing getByCampaignId method with the found campaign ID
+      const campaignData = campaign.toObject();
+      return await this.getByCampaignId(campaignData.campaignId);
+    } catch (error) {
+      this.logger.error(
+        'Error getting dashboard campaign info by campaign slug',
+        error as Error
+      );
+      return Err(
+        new Error(
+          `Failed to get dashboard campaign info: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -298,19 +510,23 @@ export class DashboardCampaignInfoService {
     userId: string
   ): Promise<Result<DashboardCampaignInfo[], Error>> {
     try {
-      this.logger.debug('Getting dashboard campaign infos by submitted user', { userId });
+      this.logger.debug('Getting dashboard campaign infos by submitted user', {
+        userId,
+      });
 
-      const result = await this.repository.findBySubmittedByWithApproval(userId);
+      const result =
+        await this.repository.findBySubmittedByWithApproval(userId);
       if (result.isErr()) {
         return Err(result.unwrapErr());
       }
 
       return Ok(result.unwrap());
     } catch (error) {
-      this.logger.error('Error getting infos by submitted user', error as Error);
-      return Err(
-        new Error(`Failed to get infos: ${(error as Error).message}`)
+      this.logger.error(
+        'Error getting infos by submitted user',
+        error as Error
       );
+      return Err(new Error(`Failed to get infos: ${(error as Error).message}`));
     }
   }
 
@@ -322,7 +538,9 @@ export class DashboardCampaignInfoService {
       this.logger.debug('Getting pending dashboard campaign infos for review');
 
       // Get pending approvals from approval repository
-      const approvalsResult = await this.approvalRepository.findPending('dashboard-campaign-info');
+      const approvalsResult = await this.approvalRepository.findPending(
+        'dashboard-campaign-info'
+      );
       if (approvalsResult.isErr()) {
         return Err(approvalsResult.unwrapErr());
       }
@@ -332,7 +550,9 @@ export class DashboardCampaignInfoService {
 
       // Get business data for each pending approval
       for (const approval of approvals) {
-        const infoResult = await this.repository.findByIdWithApproval(approval.entityId);
+        const infoResult = await this.repository.findByIdWithApproval(
+          approval.entityId
+        );
         if (infoResult.isOk() && infoResult.unwrap()) {
           infos.push(infoResult.unwrap()!);
         }
@@ -340,7 +560,10 @@ export class DashboardCampaignInfoService {
 
       return Ok(infos);
     } catch (error) {
-      this.logger.error('Error getting pending infos for review', error as Error);
+      this.logger.error(
+        'Error getting pending infos for review',
+        error as Error
+      );
       return Err(
         new Error(`Failed to get pending infos: ${(error as Error).message}`)
       );
