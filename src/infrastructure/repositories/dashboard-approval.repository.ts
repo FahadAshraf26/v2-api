@@ -1,14 +1,17 @@
-import { injectable, inject } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
 import { randomUUID } from 'crypto';
-import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
-import type { IQueryBuilder } from '@/infrastructure/persistence/query-builder/query-builder.interface';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
+import { Err, Ok, Result } from 'oxide.ts';
+import { inject, injectable } from 'tsyringe';
+
 import { TOKENS } from '@/config/dependency-injection';
+
+import { LoggerService } from '@/infrastructure/logging/logger.service';
+import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
+
 import {
+  ApprovalStatusType,
   DashboardApprovalModelAttributes,
   DashboardApprovalProps,
-  EntityType
+  SubmittedItems,
 } from '@/types/approval';
 
 @injectable()
@@ -18,83 +21,205 @@ export class DashboardApprovalRepository {
     @inject(LoggerService) private readonly logger: LoggerService
   ) {}
 
-  private toDomain(model: DashboardApprovalModelAttributes): DashboardApprovalProps {
-    const props: DashboardApprovalProps = {
+  /**
+   * Create query builder for dashboard approvals
+   */
+  private createQueryBuilder() {
+    return this.ormAdapter.createQueryBuilder<DashboardApprovalModelAttributes>(
+      'DashboardApprovals'
+    );
+  }
+
+  /**
+   * Convert from persistence to domain - FIX OPTIONAL PROPERTIES
+   */
+  private toDomain(
+    model: DashboardApprovalModelAttributes
+  ): DashboardApprovalProps {
+    return {
       id: model.id,
-      entityType: model.entityType,
-      entityId: model.entityId,
       campaignId: model.campaignId,
+      submittedItems: model.submittedItems,
       status: model.status,
+      submittedAt: model.submittedAt ?? undefined, // FIX: Use nullish coalescing
+      reviewedAt: model.reviewedAt ?? undefined, // FIX: Use nullish coalescing
+      submittedBy: model.submittedBy ?? undefined, // FIX: Use nullish coalescing
+      reviewedBy: model.reviewedBy ?? undefined, // FIX: Use nullish coalescing
+      comment: model.comment ?? undefined, // FIX: Use nullish coalescing
       createdAt: model.createdAt,
       updatedAt: model.updatedAt,
     };
-
-    // Only add optional properties if they exist
-    if (model.submittedAt) {
-      props.submittedAt = model.submittedAt;
-    }
-    if (model.reviewedAt) {
-      props.reviewedAt = model.reviewedAt;
-    }
-    if (model.submittedBy) {
-      props.submittedBy = model.submittedBy;
-    }
-    if (model.reviewedBy) {
-      props.reviewedBy = model.reviewedBy;
-    }
-    if (model.comment) {
-      props.comment = model.comment;
-    }
-
-    return props;
   }
 
-  private toPersistence(domain: DashboardApprovalProps): DashboardApprovalModelAttributes {
+  /**
+   * Convert from domain to persistence
+   */
+  private toPersistence(
+    domain: DashboardApprovalProps
+  ): DashboardApprovalModelAttributes {
     return {
       id: domain.id,
-      entityType: domain.entityType,
-      entityId: domain.entityId,
       campaignId: domain.campaignId,
+      submittedItems: domain.submittedItems,
       status: domain.status,
-      submittedAt: domain.submittedAt || null,
-      reviewedAt: domain.reviewedAt || null,
-      submittedBy: domain.submittedBy || null,
-      reviewedBy: domain.reviewedBy || null,
-      comment: domain.comment || null,
+      submittedAt: domain.submittedAt ?? null,
+      reviewedAt: domain.reviewedAt ?? null,
+      submittedBy: domain.submittedBy ?? null,
+      reviewedBy: domain.reviewedBy ?? null,
+      comment: domain.comment ?? null,
       createdAt: domain.createdAt,
       updatedAt: domain.updatedAt,
     };
   }
 
-  private createQueryBuilder(): IQueryBuilder<DashboardApprovalModelAttributes> {
-    return this.ormAdapter.createQueryBuilder<DashboardApprovalModelAttributes>('DashboardApprovals');
+  /**
+   * Submit dashboard items for approval
+   */
+  async submitForApproval(
+    campaignId: string,
+    submittedItems: SubmittedItems,
+    submittedBy: string
+  ): Promise<Result<DashboardApprovalProps, Error>> {
+    try {
+      this.logger.info('Submitting dashboard items for approval', {
+        campaignId,
+        submittedItems,
+        submittedBy,
+      });
+
+      // Check if approval already exists for this campaign
+      const existingResult = await this.findByCampaignId(campaignId);
+      if (existingResult.isErr()) {
+        return Err(existingResult.unwrapErr());
+      }
+
+      const existing = existingResult.unwrap();
+
+      if (existing) {
+        // UPDATE: Campaign already has an approval record
+        this.logger.info('Updating existing approval record', {
+          campaignId,
+          existingStatus: existing.status,
+        });
+
+        const updatedApproval: DashboardApprovalProps = {
+          ...existing,
+          submittedItems, // Update which items are submitted
+          status: 'pending', // Reset to pending
+          submittedAt: new Date(), // New submission time
+          submittedBy, // Update submitter
+          updatedAt: new Date(), // Update timestamp
+          // Clear previous review data
+          reviewedAt: undefined,
+          reviewedBy: undefined,
+          comment: undefined,
+        };
+
+        const updateResult = await this.ormAdapter.update(
+          'DashboardApprovals',
+          { campaignId },
+          this.toPersistence(updatedApproval)
+        );
+
+        if (!updateResult) {
+          return Err(new Error('Failed to update approval'));
+        }
+
+        return Ok(updatedApproval);
+      } else {
+        // CREATE: No approval record exists for this campaign
+        this.logger.info('Creating new approval record', { campaignId });
+
+        const newApproval: DashboardApprovalProps = {
+          id: randomUUID(),
+          campaignId,
+          submittedItems,
+          status: 'pending',
+          submittedAt: new Date(),
+          submittedBy,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const createResult = await this.ormAdapter.create(
+          'DashboardApprovals',
+          this.toPersistence(newApproval)
+        );
+
+        if (!createResult) {
+          return Err(new Error('Failed to create approval'));
+        }
+
+        return Ok(newApproval);
+      }
+    } catch (error) {
+      this.logger.error('Error submitting for approval', error as Error);
+      return Err(
+        new Error(`Failed to submit for approval: ${(error as Error).message}`)
+      );
+    }
   }
 
   /**
-   * Find approval by entity type and entity ID
+   * Find approval by campaign ID - FIX NULL CHECK
    */
-  async findByEntity(
-    entityType: EntityType,
-    entityId: string
+  async findByCampaignId(
+    campaignId: string
   ): Promise<Result<DashboardApprovalProps | null, Error>> {
     try {
-      this.logger.debug('Finding approval by entity', { entityType, entityId });
+      this.logger.debug('Finding approval by campaign ID', { campaignId });
 
       const queryBuilder = this.createQueryBuilder();
-      const results = await queryBuilder
-        .where({ entityType, entityId })
-        .execute();
+      const results = await queryBuilder.where({ campaignId }).execute();
 
-      if (results.length === 0) {
+      if (results.length === 0 || !results[0]) {
+        // FIX: Check for both empty array and undefined
         return Ok(null);
       }
 
-      const domain = this.toDomain(results[0]!);
+      const domain = this.toDomain(results[0]);
       return Ok(domain);
     } catch (error) {
-      this.logger.error('Error finding approval by entity', error as Error);
+      this.logger.error(
+        'Error finding approval by campaign ID',
+        error as Error
+      );
       return Err(
         new Error(`Failed to find approval: ${(error as Error).message}`)
+      );
+    }
+  }
+
+  /**
+   * Check if campaign has pending approval
+   */
+  async hasPendingApproval(
+    campaignId: string
+  ): Promise<Result<boolean, Error>> {
+    try {
+      this.logger.debug('Checking for pending approval', { campaignId });
+
+      const approvalResult = await this.findByCampaignId(campaignId);
+      if (approvalResult.isErr()) {
+        return Err(approvalResult.unwrapErr());
+      }
+
+      const approval = approvalResult.unwrap();
+      const hasPending = approval !== null && approval.status === 'pending';
+
+      this.logger.debug('Pending approval check result', {
+        campaignId,
+        hasPending,
+        currentStatus: approval?.status,
+      });
+
+      return Ok(hasPending);
+    } catch (error) {
+      this.logger.error('Error checking pending approval', error as Error);
+      return Err(
+        new Error(
+          `Failed to check pending approval: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -103,16 +228,16 @@ export class DashboardApprovalRepository {
    * Find all pending approvals
    */
   async findPending(
-    entityType?: EntityType
+    submittedBy?: string
   ): Promise<Result<DashboardApprovalProps[], Error>> {
     try {
-      this.logger.debug('Finding pending approvals', { entityType });
+      this.logger.debug('Finding pending approvals', { submittedBy });
 
       const queryBuilder = this.createQueryBuilder();
       const whereClause: any = { status: 'pending' };
 
-      if (entityType) {
-        whereClause.entityType = entityType;
+      if (submittedBy) {
+        whereClause.submittedBy = submittedBy;
       }
 
       const results = await queryBuilder
@@ -125,155 +250,9 @@ export class DashboardApprovalRepository {
     } catch (error) {
       this.logger.error('Error finding pending approvals', error as Error);
       return Err(
-        new Error(`Failed to find pending approvals: ${(error as Error).message}`)
-      );
-    }
-  }
-
-  /**
-   * Find approvals by campaign ID
-   */
-  async findByCampaignId(
-    campaignId: string,
-    entityType?: EntityType
-  ): Promise<Result<DashboardApprovalProps[], Error>> {
-    try {
-      this.logger.debug('Finding approvals by campaign ID', { campaignId, entityType });
-
-      const queryBuilder = this.createQueryBuilder();
-      const whereClause: any = { campaignId };
-
-      if (entityType) {
-        whereClause.entityType = entityType;
-      }
-
-      const results = await queryBuilder
-        .where(whereClause)
-        .orderBy('createdAt', 'DESC')
-        .execute();
-
-      const domains = results.map(result => this.toDomain(result));
-      return Ok(domains);
-    } catch (error) {
-      this.logger.error('Error finding approvals by campaign ID', error as Error);
-      return Err(
-        new Error(`Failed to find approvals: ${(error as Error).message}`)
-      );
-    }
-  }
-
-  /**
-   * Find approvals by submitted user
-   */
-  async findBySubmittedBy(
-    userId: string,
-    entityType?: EntityType
-  ): Promise<Result<DashboardApprovalProps[], Error>> {
-    try {
-      this.logger.debug('Finding approvals by submitted user', { userId, entityType });
-
-      const queryBuilder = this.createQueryBuilder();
-      const whereClause: any = { submittedBy: userId };
-
-      if (entityType) {
-        whereClause.entityType = entityType;
-      }
-
-      const results = await queryBuilder
-        .where(whereClause)
-        .orderBy('submittedAt', 'DESC')
-        .execute();
-
-      const domains = results.map(result => this.toDomain(result));
-      return Ok(domains);
-    } catch (error) {
-      this.logger.error('Error finding approvals by submitted user', error as Error);
-      return Err(
-        new Error(`Failed to find approvals: ${(error as Error).message}`)
-      );
-    }
-  }
-
-  /**
-   * Submit entity for approval
-   */
-  async submitForApproval(
-    entityType: EntityType,
-    entityId: string,
-    campaignId: string,
-    submittedBy: string
-  ): Promise<Result<DashboardApprovalProps, Error>> {
-    try {
-      this.logger.info('Submitting entity for approval', {
-        entityType,
-        entityId,
-        campaignId,
-        submittedBy
-      });
-
-      // Check if approval already exists
-      const existingResult = await this.findByEntity(entityType, entityId);
-      if (existingResult.isErr()) {
-        return Err(existingResult.unwrapErr());
-      }
-
-      const existing = existingResult.unwrap();
-
-      if (existing) {
-                 // Update existing approval to pending status
-         const updatedApproval: DashboardApprovalProps = {
-           ...existing,
-           status: 'pending',
-           submittedAt: new Date(),
-           submittedBy,
-           updatedAt: new Date(),
-         };
-
-         // Remove previous review data
-         delete (updatedApproval as any).reviewedAt;
-         delete (updatedApproval as any).reviewedBy;
-         delete (updatedApproval as any).comment;
-
-         const updateResult = await this.ormAdapter.update(
-           'DashboardApprovals',
-           { id: existing.id },
-           this.toPersistence(updatedApproval)
-         );
-
-         if (!updateResult) {
-           return Err(new Error('Failed to update approval'));
-         }
-
-         return Ok(updatedApproval);
-      } else {
-                 // Create new approval
-         const newApproval: DashboardApprovalProps = {
-           id: randomUUID(),
-           entityType,
-           entityId,
-           campaignId,
-           status: 'pending',
-           submittedAt: new Date(),
-           submittedBy,
-           createdAt: new Date(),
-           updatedAt: new Date(),
-         };
-
-         const createResult = await this.ormAdapter.create(
-           'DashboardApprovals',
-           this.toPersistence(newApproval)
-         );
-
-         if (!createResult) {
-           return Err(new Error('Failed to create approval'));
-         }
-
-         return Ok(newApproval);
-      }
-    } catch (error) {
-      this.logger.error('Error submitting for approval', error as Error);
-      return Err(
-        new Error(`Failed to submit for approval: ${(error as Error).message}`)
+        new Error(
+          `Failed to find pending approvals: ${(error as Error).message}`
+        )
       );
     }
   }
@@ -282,22 +261,20 @@ export class DashboardApprovalRepository {
    * Review approval (approve or reject)
    */
   async reviewApproval(
-    entityType: EntityType,
-    entityId: string,
+    campaignId: string,
     action: 'approve' | 'reject',
     reviewedBy: string,
     comment?: string
   ): Promise<Result<DashboardApprovalProps, Error>> {
     try {
       this.logger.info('Reviewing approval', {
-        entityType,
-        entityId,
+        campaignId,
         action,
-        reviewedBy
+        reviewedBy,
       });
 
       // Find existing approval
-      const existingResult = await this.findByEntity(entityType, entityId);
+      const existingResult = await this.findByCampaignId(campaignId);
       if (existingResult.isErr()) {
         return Err(existingResult.unwrapErr());
       }
@@ -311,31 +288,31 @@ export class DashboardApprovalRepository {
         return Err(new Error('Can only review pending approvals'));
       }
 
-             // Update approval status
-       const updatedApproval: DashboardApprovalProps = {
-         ...existing,
-         status: action === 'approve' ? 'approved' : 'rejected',
-         reviewedAt: new Date(),
-         reviewedBy,
-         updatedAt: new Date(),
-       };
+      // Update approval status
+      const updatedApproval: DashboardApprovalProps = {
+        ...existing,
+        status: action === 'approve' ? 'approved' : 'rejected',
+        reviewedAt: new Date(),
+        reviewedBy,
+        updatedAt: new Date(),
+      };
 
-       // Only add comment if provided
-       if (comment) {
-         updatedApproval.comment = comment;
-       }
+      // Only add comment if provided
+      if (comment) {
+        updatedApproval.comment = comment;
+      }
 
-       const updateResult = await this.ormAdapter.update(
-         'DashboardApprovals',
-         { id: existing.id },
-         this.toPersistence(updatedApproval)
-       );
+      const updateResult = await this.ormAdapter.update(
+        'DashboardApprovals',
+        { campaignId },
+        this.toPersistence(updatedApproval)
+      );
 
-       if (!updateResult) {
-         return Err(new Error('Failed to update approval'));
-       }
+      if (!updateResult) {
+        return Err(new Error('Failed to update approval'));
+      }
 
-       return Ok(updatedApproval);
+      return Ok(updatedApproval);
     } catch (error) {
       this.logger.error('Error reviewing approval', error as Error);
       return Err(
@@ -347,12 +324,16 @@ export class DashboardApprovalRepository {
   /**
    * Get approval statistics
    */
-  async getStatistics(): Promise<Result<{
-    pending: number;
-    approved: number;
-    rejected: number;
-    byEntityType: Record<EntityType, { pending: number; approved: number; rejected: number }>;
-  }, Error>> {
+  async getStatistics(): Promise<
+    Result<
+      {
+        pending: number;
+        approved: number;
+        rejected: number;
+      },
+      Error
+    >
+  > {
     try {
       this.logger.debug('Getting approval statistics');
 
@@ -363,16 +344,11 @@ export class DashboardApprovalRepository {
         pending: 0,
         approved: 0,
         rejected: 0,
-        byEntityType: {
-          'dashboard-campaign-summary': { pending: 0, approved: 0, rejected: 0 },
-          'dashboard-campaign-info': { pending: 0, approved: 0, rejected: 0 },
-        } as Record<EntityType, { pending: number; approved: number; rejected: number }>,
       };
 
       results.forEach(result => {
         const domain = this.toDomain(result);
         stats[domain.status]++;
-        stats.byEntityType[domain.entityType][domain.status]++;
       });
 
       return Ok(stats);

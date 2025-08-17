@@ -3,12 +3,10 @@ import { container } from 'tsyringe';
 
 import { DashboardSubmissionController } from '@/presentation/controllers/dashboard-submission.controller';
 
-import { authenticateUser } from '@/shared/utils/middleware/auth.middleware';
-
 import {
-  dashboardSubmissionSchema,
-  errorSchema,
-} from '@/types/dashboard-submission';
+  authenticateAdmin,
+  authenticateUser,
+} from '@/shared/utils/middleware/auth.middleware';
 
 export default async function dashboardSubmissionRoutes(
   fastify: FastifyInstance,
@@ -16,100 +14,34 @@ export default async function dashboardSubmissionRoutes(
 ): Promise<void> {
   const controller = container.resolve(DashboardSubmissionController);
 
-  // Submit multiple dashboard entities for review
+  // Submit dashboard items for review
   fastify.post(
     '/submit',
     {
       preHandler: authenticateUser,
       schema: {
         description:
-          'Submit multiple dashboard entities for review with notifications',
+          'Submit dashboard items for review (one approval per campaign)',
         tags: ['Dashboard Submission'],
         security: [{ bearerAuth: [] }],
-        body: dashboardSubmissionSchema,
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean' },
-              submissionId: { type: 'string' },
-              results: {
-                type: 'object',
-                properties: {
-                  dashboardCampaignInfo: {
-                    type: 'object',
-                    properties: {
-                      success: { type: 'boolean' },
-                      entityId: { type: 'string' },
-                      error: { type: 'string' },
-                    },
-                  },
-                  dashboardCampaignSummary: {
-                    type: 'object',
-                    properties: {
-                      success: { type: 'boolean' },
-                      entityId: { type: 'string' },
-                      error: { type: 'string' },
-                    },
-                  },
-                  dashboardSocials: {
-                    type: 'object',
-                    properties: {
-                      success: { type: 'boolean' },
-                      entityId: { type: 'string' },
-                      error: { type: 'string' },
-                    },
-                  },
-                },
+        body: {
+          type: 'object',
+          required: ['campaignId', 'items'],
+          properties: {
+            campaignId: { type: 'string', format: 'uuid' },
+            items: {
+              type: 'object',
+              properties: {
+                dashboardCampaignInfo: { type: 'boolean' },
+                dashboardCampaignSummary: { type: 'boolean' },
+                dashboardSocials: { type: 'boolean' },
               },
-              notifications: {
-                type: 'object',
-                properties: {
-                  slack: {
-                    type: 'object',
-                    properties: {
-                      sent: { type: 'boolean' },
-                      error: { type: 'string' },
-                    },
-                    required: ['sent'],
-                  },
-                  email: {
-                    type: 'object',
-                    properties: {
-                      sent: { type: 'boolean' },
-                      recipients: {
-                        type: 'array',
-                        items: { type: 'string' },
-                      },
-                      error: { type: 'string' },
-                    },
-                    required: ['sent', 'recipients'],
-                  },
-                },
-                required: ['slack', 'email'],
-              },
+              additionalProperties: false,
             },
-            required: ['success', 'submissionId', 'results', 'notifications'],
+            submissionNote: { type: 'string' },
           },
-          400: errorSchema,
-          401: errorSchema,
-          404: errorSchema,
-          500: errorSchema,
+          additionalProperties: false,
         },
-      },
-    },
-    (req, reply) => controller.submitForReview(req as any, reply)
-  );
-
-  // Test notification services (admin endpoint)
-  fastify.get(
-    '/test-notifications',
-    {
-      preHandler: authenticateUser,
-      schema: {
-        description: 'Test Slack and email notification services',
-        tags: ['Dashboard Submission'],
-        security: [{ bearerAuth: [] }],
         response: {
           200: {
             type: 'object',
@@ -118,26 +50,114 @@ export default async function dashboardSubmissionRoutes(
               data: {
                 type: 'object',
                 properties: {
-                  message: { type: 'string' },
-                  results: {
+                  submissionId: { type: 'string' },
+                  approvalId: { type: 'string' },
+                  status: { type: 'string', enum: ['completed', 'failed'] },
+                  submittedItems: {
                     type: 'object',
                     properties: {
-                      slack: { type: 'boolean' },
-                      email: { type: 'boolean' },
+                      dashboardCampaignInfo: { type: 'boolean' },
+                      dashboardCampaignSummary: { type: 'boolean' },
+                      dashboardSocials: { type: 'boolean' },
                     },
-                    required: ['slack', 'email'],
                   },
+                  message: { type: 'string' },
                 },
-                required: ['message', 'results'],
+                required: [
+                  'submissionId',
+                  'approvalId',
+                  'status',
+                  'submittedItems',
+                ],
               },
             },
             required: ['success', 'data'],
           },
-          401: errorSchema,
-          500: errorSchema,
+          400: { type: 'object', properties: { error: { type: 'string' } } },
+          401: { type: 'object', properties: { error: { type: 'string' } } },
+          409: { type: 'object', properties: { error: { type: 'string' } } },
         },
       },
     },
-    (req, reply) => controller.testNotifications(req as any, reply)
+    (req, reply) => controller.submitForReview(req as any, reply)
+  );
+
+  // Get approval status for campaign
+  fastify.get(
+    '/status/:campaignId',
+    {
+      preHandler: authenticateUser,
+      schema: {
+        description: 'Get approval status for a campaign',
+        tags: ['Dashboard Submission'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['campaignId'],
+          properties: {
+            campaignId: { type: 'string', format: 'uuid' },
+          },
+        },
+      },
+    },
+    (req, reply) => controller.getApprovalStatus(req as any, reply)
+  );
+
+  // Admin: Get pending approvals
+  fastify.get(
+    '/admin/pending',
+    {
+      preHandler: authenticateAdmin,
+      schema: {
+        description: 'Get all pending approvals for admin review',
+        tags: ['Dashboard Submission - Admin'],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    (req, reply) => controller.getPendingForReview(req as any, reply)
+  );
+
+  // Admin: Review approval
+  fastify.post(
+    '/admin/:campaignId/review',
+    {
+      preHandler: authenticateAdmin,
+      schema: {
+        description: 'Review approval (approve or reject) - Admin only',
+        tags: ['Dashboard Submission - Admin'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['campaignId'],
+          properties: {
+            campaignId: { type: 'string', format: 'uuid' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['action'],
+          properties: {
+            action: { type: 'string', enum: ['approve', 'reject'] },
+            comment: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    (req, reply) => controller.reviewApproval(req as any, reply)
+  );
+
+  // Admin: Get statistics
+  fastify.get(
+    '/admin/statistics',
+    {
+      preHandler: authenticateAdmin,
+      schema: {
+        description: 'Get approval statistics - Admin only',
+        tags: ['Dashboard Submission - Admin'],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    (req, reply) => controller.getStatistics(req as any, reply)
   );
 }

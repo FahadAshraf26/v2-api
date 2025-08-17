@@ -10,11 +10,13 @@ import { UseCase } from '@/application/core/use-case';
 
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { CampaignRepository } from '@/infrastructure/repositories/campaign.repository';
+import { DashboardApprovalRepository } from '@/infrastructure/repositories/dashboard-approval.repository';
 import { DashboardCampaignInfoRepository } from '@/infrastructure/repositories/dashboard-campaign-info.repository';
 import { DashboardCampaignSummaryRepository } from '@/infrastructure/repositories/dashboard-campaign-summary.repository';
 import { DashboardSocialsRepository } from '@/infrastructure/repositories/dashboard-socials.repository';
 
-// Request/Response DTOs (Application Layer concerns)
+import { SubmittedItems } from '@/types/approval';
+
 export interface SubmitDashboardItemsRequest {
   campaignId: string;
   submittedBy: string;
@@ -28,23 +30,10 @@ export interface SubmitDashboardItemsRequest {
 
 export interface SubmitDashboardItemsResponse {
   submissionId: string;
-  status: 'completed' | 'partial' | 'failed';
-  processedItems: {
-    dashboardCampaignInfo?: {
-      success: boolean;
-      entityId?: string;
-      error?: string;
-    };
-    dashboardCampaignSummary?: {
-      success: boolean;
-      entityId?: string;
-      error?: string;
-    };
-    dashboardSocials?: { success: boolean; entityId?: string; error?: string };
-  };
-  successfulItems: string[];
-  totalRequested: number;
-  totalSuccessful: number;
+  approvalId: string;
+  status: 'completed' | 'failed';
+  submittedItems: SubmittedItems;
+  errors?: string[];
 }
 
 @injectable()
@@ -58,11 +47,13 @@ export class SubmitDashboardItemsUseCase extends UseCase<
     private readonly submissionRepository: ISubmissionRepository,
     @inject(TOKENS.CampaignRepositoryToken)
     private readonly campaignRepository: CampaignRepository,
+    @inject(TOKENS.DashboardApprovalRepositoryToken)
+    private readonly approvalRepository: DashboardApprovalRepository,
     @inject(TOKENS.DashboardCampaignInfoRepositoryToken)
     private readonly dashboardInfoRepository: DashboardCampaignInfoRepository,
-    @inject(DashboardCampaignSummaryRepository)
+    @inject(TOKENS.DashboardCampaignSummaryRepositoryToken)
     private readonly dashboardSummaryRepository: DashboardCampaignSummaryRepository,
-    @inject(DashboardSocialsRepository)
+    @inject(TOKENS.DashboardSocialsRepositoryToken)
     private readonly dashboardSocialsRepository: DashboardSocialsRepository
   ) {
     super();
@@ -78,18 +69,37 @@ export class SubmitDashboardItemsUseCase extends UseCase<
     });
 
     try {
-      // 1. Application-level validation
-      const validationResult = await this.validate(request);
+      // 1. Validate campaign exists
+      const campaignValidation = await this.validateCampaignExists(
+        request.campaignId
+      );
+      if (campaignValidation.isErr()) {
+        return Err(campaignValidation.unwrapErr());
+      }
+
+      // 2. Check for existing pending reviews
+      const pendingCheckResult = await this.checkPendingReviews(
+        request.campaignId
+      );
+      if (pendingCheckResult.isErr()) {
+        return Err(pendingCheckResult.unwrapErr());
+      }
+
+      // 3. Validate that requested entities exist and have content
+      const validationResult = await this.validateEntitiesExist(
+        request.campaignId,
+        request.items
+      );
       if (validationResult.isErr()) {
         return Err(validationResult.unwrapErr());
       }
 
-      // 2. Create domain entity (business rules enforced here)
+      // 4. Create submission entity for tracking
       const submissionResult = Submission.create({
         campaignId: request.campaignId,
         submittedBy: request.submittedBy,
-        submissionNote: request.submissionNote,
         items: request.items,
+        submissionNote: request.submissionNote,
       });
 
       if (submissionResult.isErr()) {
@@ -98,73 +108,69 @@ export class SubmitDashboardItemsUseCase extends UseCase<
 
       const submission = submissionResult.unwrap();
 
-      // 3. Save the submission (persistence)
+      // 5. Submit for approval (single entry per campaign)
+      const submittedItems: SubmittedItems = {
+        dashboardCampaignInfo: !!request.items.dashboardCampaignInfo,
+        dashboardCampaignSummary: !!request.items.dashboardCampaignSummary,
+        dashboardSocials: !!request.items.dashboardSocials,
+      };
+
+      const approvalResult = await this.approvalRepository.submitForApproval(
+        request.campaignId,
+        submittedItems,
+        request.submittedBy
+      );
+
+      if (approvalResult.isErr()) {
+        return Err(approvalResult.unwrapErr());
+      }
+
+      const approval = approvalResult.unwrap();
+
+      // 6. Save submission for tracking (optional - log warning if fails)
       const saveResult = await this.submissionRepository.save(submission);
       if (saveResult.isErr()) {
-        return Err(saveResult.unwrapErr());
-      }
-
-      // 4. Start processing (domain operation)
-      const startResult = submission.startProcessing();
-      if (startResult.isErr()) {
-        return Err(startResult.unwrapErr());
-      }
-
-      // 5. Process each selected item (orchestration logic)
-      await this.processSelectedItems(submission, request.items);
-
-      // 6. Complete the submission (domain operation)
-      const completeResult = submission.complete();
-      if (completeResult.isErr()) {
-        // If completion fails, mark as failed
-        submission.fail('Failed to complete submission');
-      }
-
-      // 7. Update submission state
-      const updateResult = await this.submissionRepository.update(submission);
-      if (updateResult.isErr()) {
-        this.logger.error('Failed to update submission', {
-          error: updateResult.unwrapErr(),
+        this.logger.warn('Failed to save submission entity', {
+          error: saveResult.unwrapErr().message,
         });
       }
 
-      // 8. Prepare response
-      const response = this.buildResponse(submission);
-
-      this.logger.info('Submit dashboard items use case completed', {
+      // 7. Build response
+      const response: SubmitDashboardItemsResponse = {
         submissionId: submission.id,
-        status: response.status,
-        successfulItems: response.successfulItems.length,
-      });
+        approvalId: approval.id,
+        status: 'completed',
+        submittedItems: approval.submittedItems,
+      };
+
+      this.logger.info(
+        'Submit dashboard items use case completed successfully',
+        {
+          campaignId: request.campaignId,
+          approvalId: approval.id,
+          submittedItems: approval.submittedItems,
+        }
+      );
 
       return Ok(response);
     } catch (error) {
       this.logger.error(
-        'Submit dashboard items use case failed',
+        'Error in submit dashboard items use case',
         error as Error
       );
       return Err(
-        new Error(`Use case execution failed: ${(error as Error).message}`)
+        new Error(
+          `Failed to submit dashboard items: ${(error as Error).message}`
+        )
       );
     }
   }
 
-  protected override async validate(
-    request: SubmitDashboardItemsRequest
+  // Private validation methods
+  private async validateCampaignExists(
+    campaignId: string
   ): Promise<Result<void, Error>> {
-    // Business validation
-    if (!request.campaignId?.trim()) {
-      return Err(new Error('Campaign ID is required'));
-    }
-
-    if (!request.submittedBy?.trim()) {
-      return Err(new Error('Submitter ID is required'));
-    }
-
-    // Check if campaign exists (external dependency validation)
-    const campaignResult = await this.campaignRepository.findById(
-      request.campaignId
-    );
+    const campaignResult = await this.campaignRepository.findById(campaignId);
     if (campaignResult.isErr()) {
       return Err(campaignResult.unwrapErr());
     }
@@ -176,185 +182,97 @@ export class SubmitDashboardItemsUseCase extends UseCase<
     return Ok(undefined);
   }
 
-  // Private orchestration methods
-  private async processSelectedItems(
-    submission: Submission,
+  private async checkPendingReviews(
+    campaignId: string
+  ): Promise<Result<void, Error>> {
+    this.logger.debug('Checking for existing pending reviews', { campaignId });
+
+    const hasPendingResult =
+      await this.approvalRepository.hasPendingApproval(campaignId);
+    if (hasPendingResult.isErr()) {
+      return Err(hasPendingResult.unwrapErr());
+    }
+
+    const hasPending = hasPendingResult.unwrap();
+    if (hasPending) {
+      return Err(
+        new Error(
+          'This campaign already has a pending review. ' +
+            'Please wait for the current review to complete before submitting again.'
+        )
+      );
+    }
+
+    return Ok(undefined);
+  }
+
+  private async validateEntitiesExist(
+    campaignId: string,
     requestedItems: SubmitDashboardItemsRequest['items']
-  ): Promise<void> {
-    // Process dashboard campaign info
+  ): Promise<Result<void, Error>> {
+    const errors: string[] = [];
+
+    // Check dashboard campaign info if requested
     if (requestedItems.dashboardCampaignInfo) {
-      const result = await this.processDashboardInfo(
-        submission.campaignId,
-        submission.submittedBy
-      );
-      const recordResult = submission.recordItemResult(
-        'dashboardCampaignInfo',
-        result
-      );
-      if (recordResult.isErr()) {
-        this.logger.warn('Failed to record dashboard info result', {
-          error: recordResult.unwrapErr(),
-        });
+      try {
+        const infoResult =
+          await this.dashboardInfoRepository.findByCampaignIdWithApproval(
+            campaignId
+          );
+        if (infoResult.isErr() || !infoResult.unwrap()) {
+          errors.push('Dashboard Campaign Info not found for this campaign');
+        } else if (!infoResult.unwrap()!.hasContent()) {
+          errors.push('Dashboard Campaign Info has no content to submit');
+        }
+      } catch (error) {
+        errors.push(
+          `Failed to validate Dashboard Campaign Info: ${(error as Error).message}`
+        );
       }
     }
 
-    // Process dashboard campaign summary
+    // Check dashboard campaign summary if requested
     if (requestedItems.dashboardCampaignSummary) {
-      const result = await this.processDashboardSummary(
-        submission.campaignId,
-        submission.submittedBy
-      );
-      const recordResult = submission.recordItemResult(
-        'dashboardCampaignSummary',
-        result
-      );
-      if (recordResult.isErr()) {
-        this.logger.warn('Failed to record dashboard summary result', {
-          error: recordResult.unwrapErr(),
-        });
+      try {
+        const summaryResult =
+          await this.dashboardSummaryRepository.findByCampaignIdWithApproval(
+            campaignId
+          );
+        if (summaryResult.isErr() || !summaryResult.unwrap()) {
+          errors.push('Dashboard Campaign Summary not found for this campaign');
+        } else if (!summaryResult.unwrap()!.hasContent()) {
+          errors.push('Dashboard Campaign Summary has no content to submit');
+        }
+      } catch (error) {
+        errors.push(
+          `Failed to validate Dashboard Campaign Summary: ${(error as Error).message}`
+        );
       }
     }
 
-    // Process dashboard socials
+    // Check dashboard socials if requested
     if (requestedItems.dashboardSocials) {
-      const result = await this.processDashboardSocials(
-        submission.campaignId,
-        submission.submittedBy
-      );
-      const recordResult = submission.recordItemResult(
-        'dashboardSocials',
-        result
-      );
-      if (recordResult.isErr()) {
-        this.logger.warn('Failed to record dashboard socials result', {
-          error: recordResult.unwrapErr(),
-        });
+      try {
+        const socialsResult =
+          await this.dashboardSocialsRepository.findByCampaignIdWithApproval(
+            campaignId
+          );
+        if (socialsResult.isErr() || !socialsResult.unwrap()) {
+          errors.push('Dashboard Socials not found for this campaign');
+        } else if (!socialsResult.unwrap()!.hasContent()) {
+          errors.push('Dashboard Socials has no content to submit');
+        }
+      } catch (error) {
+        errors.push(
+          `Failed to validate Dashboard Socials: ${(error as Error).message}`
+        );
       }
     }
-  }
 
-  private async processDashboardInfo(
-    campaignId: string,
-    userId: string
-  ): Promise<{ success: boolean; entityId?: string; error?: string }> {
-    try {
-      const findResult =
-        await this.dashboardInfoRepository.findByCampaignIdWithApproval(
-          campaignId
-        );
-      if (findResult.isErr()) {
-        return { success: false, error: findResult.unwrapErr().message };
-      }
-
-      const dashboardInfo = findResult.unwrap();
-      if (!dashboardInfo) {
-        return { success: false, error: 'Dashboard campaign info not found' };
-      }
-
-      const submitResult = await this.dashboardInfoRepository.submitForApproval(
-        dashboardInfo.id,
-        userId
-      );
-      if (submitResult.isErr()) {
-        return { success: false, error: submitResult.unwrapErr().message };
-      }
-
-      return { success: true, entityId: dashboardInfo.id };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
-    }
-  }
-
-  private async processDashboardSummary(
-    campaignId: string,
-    userId: string
-  ): Promise<{ success: boolean; entityId?: string; error?: string }> {
-    try {
-      const findResult =
-        await this.dashboardSummaryRepository.findByCampaignIdWithApproval(
-          campaignId
-        );
-      if (findResult.isErr()) {
-        return { success: false, error: findResult.unwrapErr().message };
-      }
-
-      const dashboardSummary = findResult.unwrap();
-      if (!dashboardSummary) {
-        return {
-          success: false,
-          error: 'Dashboard campaign summary not found',
-        };
-      }
-
-      const submitResult =
-        await this.dashboardSummaryRepository.submitForApproval(
-          dashboardSummary.id,
-          userId
-        );
-      if (submitResult.isErr()) {
-        return { success: false, error: submitResult.unwrapErr().message };
-      }
-
-      return { success: true, entityId: dashboardSummary.id };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
-    }
-  }
-
-  private async processDashboardSocials(
-    campaignId: string,
-    userId: string
-  ): Promise<{ success: boolean; entityId?: string; error?: string }> {
-    try {
-      const findResult =
-        await this.dashboardSocialsRepository.findByCampaignIdWithApproval(
-          campaignId
-        );
-      if (findResult.isErr()) {
-        return { success: false, error: findResult.unwrapErr().message };
-      }
-
-      const dashboardSocials = findResult.unwrap();
-      if (!dashboardSocials) {
-        return { success: false, error: 'Dashboard socials not found' };
-      }
-
-      const submitResult =
-        await this.dashboardSocialsRepository.submitForApproval(
-          dashboardSocials.id,
-          userId
-        );
-      if (submitResult.isErr()) {
-        return { success: false, error: submitResult.unwrapErr().message };
-      }
-
-      return { success: true, entityId: dashboardSocials.id };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
-    }
-  }
-
-  private buildResponse(submission: Submission): SubmitDashboardItemsResponse {
-    const successfulItems = submission.getSuccessfulItems();
-    const requestedItems = submission.items.getSelectedItems();
-    const results = submission.results;
-
-    let status: 'completed' | 'partial' | 'failed';
-    if (successfulItems.length === 0) {
-      status = 'failed';
-    } else if (successfulItems.length === requestedItems.length) {
-      status = 'completed';
-    } else {
-      status = 'partial';
+    if (errors.length > 0) {
+      return Err(new Error(errors.join('; ')));
     }
 
-    return {
-      submissionId: submission.id,
-      status,
-      processedItems: results,
-      successfulItems,
-      totalRequested: requestedItems.length,
-      totalSuccessful: successfulItems.length,
-    };
+    return Ok(undefined);
   }
 }

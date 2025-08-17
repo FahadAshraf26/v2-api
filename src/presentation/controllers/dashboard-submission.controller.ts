@@ -1,25 +1,25 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { inject, injectable } from 'tsyringe';
 
+import { TOKENS } from '@/config/dependency-injection';
+
 import {
   SubmitDashboardItemsRequest,
   SubmitDashboardItemsUseCase,
 } from '@/application/use-cases/submit-dashboard-items.use-case';
 
 import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { EmailService } from '@/infrastructure/notifications/email.service';
-import { SlackService } from '@/infrastructure/notifications/slack.service';
+import { DashboardApprovalRepository } from '@/infrastructure/repositories/dashboard-approval.repository';
 
 import { BaseController } from '@/presentation/controllers/base.controller';
 
 import { ErrorConverter } from '@/shared/utils/error-converter';
 import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
 
-// HTTP Request/Response interfaces (Presentation Layer concern)
 interface SubmitForReviewRequest {
   Body: {
     campaignId: string;
-    entities: {
+    items: {
       dashboardCampaignInfo?: boolean;
       dashboardCampaignSummary?: boolean;
       dashboardSocials?: boolean;
@@ -28,116 +28,179 @@ interface SubmitForReviewRequest {
   };
 }
 
-interface TestNotificationsRequest {
-  Body: {
+interface GetApprovalStatusRequest {
+  Params: {
     campaignId: string;
-    campaignName?: string;
-    submittedEntities: string[];
+  };
+}
+
+interface ReviewApprovalRequest {
+  Params: {
+    campaignId: string;
+  };
+  Body: {
+    action: 'approve' | 'reject';
+    comment?: string;
   };
 }
 
 @injectable()
 export class DashboardSubmissionController extends BaseController {
   constructor(
-    @inject(SubmitDashboardItemsUseCase)
+    @inject(TOKENS.SubmitDashboardItemsUseCaseToken)
     private readonly submitDashboardUseCase: SubmitDashboardItemsUseCase,
-    @inject(SlackService) private readonly slackService: SlackService,
-    @inject(EmailService) private readonly emailService: EmailService,
+    @inject(TOKENS.DashboardApprovalRepositoryToken)
+    private readonly approvalRepository: DashboardApprovalRepository,
     @inject(LoggerService) logger: LoggerService
   ) {
     super(logger);
   }
 
-  /**
-   * Submit dashboard items for review
-   * POST /api/v2/dashboard-submissions/submit
-   */
   async submitForReview(
     request: FastifyRequest<SubmitForReviewRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    // 1. Authentication (Presentation concern)
     const userId = this.requireAuth(request);
 
-    // 2. Map HTTP request to Use Case request (Presentation concern)
     const useCaseRequest: SubmitDashboardItemsRequest = {
       campaignId: request.body.campaignId,
       submittedBy: userId,
-      items: request.body.entities, // Map 'entities' to 'items'
-      submissionNote: request.body.submissionNote || undefined,
+      items: request.body.items,
+      submissionNote: request.body.submissionNote,
     };
 
-    // 3. Execute use case (delegate to Application layer)
     const result = await this.submitDashboardUseCase.execute(useCaseRequest);
 
-    // 4. Handle result and map to HTTP response (Presentation concern)
     if (result.isErr()) {
       throw ErrorConverter.fromResult(result);
     }
 
     const response = result.unwrap();
 
-    // 5. Map response to expected dashboard submission format
-    const dashboardResponse = {
+    return this.ok(reply, {
       success: true,
-      submissionId: response.submissionId,
-      results: response.processedItems,
-      notifications: {
-        slack: { sent: true }, // Events will handle notifications
-        email: { sent: true, recipients: [] },
+      data: {
+        submissionId: response.submissionId,
+        approvalId: response.approvalId,
+        status: response.status,
+        submittedItems: response.submittedItems,
+        message: 'Dashboard items successfully submitted for review',
       },
-    };
-
-    // 6. Return HTTP response (Presentation concern)
-    return this.ok(reply, dashboardResponse);
+    });
   }
 
-  /**
-   * Test notifications (for debugging)
-   * GET /api/v2/dashboard-submissions/test-notifications
-   */
-  async testNotifications(
-    request: FastifyRequest<TestNotificationsRequest>,
+  async getApprovalStatus(
+    request: FastifyRequest<GetApprovalStatusRequest> & AuthenticatedRequest,
     reply: FastifyReply
   ): Promise<void> {
-    try {
-      const notificationData = {
-        campaignId: request.body.campaignId,
-        campaignName: request.body.campaignName || 'Test Campaign',
-        submittedBy: 'test-user',
-        submittedEntities: request.body.submittedEntities,
-        submissionNote: 'Test notification',
-        submissionId: 'test-submission-id',
-        timestamp: new Date(),
-      };
+    this.requireAuth(request);
 
-      // Test Slack notification
-      const slackResult =
-        await this.slackService.sendSubmissionNotification(notificationData);
+    const { campaignId } = request.params;
 
-      // Test Email notification
-      const recipients = [
-        { email: 'admin@example.com', name: 'Admin', role: 'admin' as const },
-        { email: 'owner@example.com', name: 'Owner', role: 'owner' as const },
-      ];
-      const emailResult = await this.emailService.sendSubmissionNotifications(
-        notificationData,
-        recipients
-      );
-
-      return this.ok(reply, {
-        success: true,
-        slack: {
-          success: slackResult.isOk(),
-          error: slackResult.isErr() ? slackResult.unwrapErr().message : null,
-        },
-        email: {
-          success: emailResult.isOk(),
-          error: emailResult.isErr() ? emailResult.unwrapErr().message : null,
-        },
-      });
-    } catch (error) {
-      throw ErrorConverter.fromError(error as Error);
+    const result = await this.approvalRepository.findByCampaignId(campaignId);
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
     }
+
+    const approval = result.unwrap();
+
+    return this.ok(reply, {
+      success: true,
+      data: approval
+        ? {
+            id: approval.id,
+            campaignId: approval.campaignId,
+            status: approval.status,
+            submittedItems: approval.submittedItems,
+            submittedAt: approval.submittedAt,
+            submittedBy: approval.submittedBy,
+            reviewedAt: approval.reviewedAt,
+            reviewedBy: approval.reviewedBy,
+            comment: approval.comment,
+          }
+        : null,
+    });
+  }
+
+  async getPendingForReview(
+    request: FastifyRequest & AuthenticatedRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    this.requireAdmin(request);
+
+    const result = await this.approvalRepository.findPending();
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
+
+    const approvals = result.unwrap();
+
+    return this.ok(reply, {
+      success: true,
+      data: approvals.map(approval => ({
+        id: approval.id,
+        campaignId: approval.campaignId,
+        status: approval.status,
+        submittedItems: approval.submittedItems,
+        submittedAt: approval.submittedAt,
+        submittedBy: approval.submittedBy,
+      })),
+      count: approvals.length,
+    });
+  }
+
+  async reviewApproval(
+    request: FastifyRequest<ReviewApprovalRequest> & AuthenticatedRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    const adminId = this.requireAdmin(request);
+    const { campaignId } = request.params;
+    const { action, comment } = request.body;
+
+    const result = await this.approvalRepository.reviewApproval(
+      campaignId,
+      action,
+      adminId,
+      comment
+    );
+
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
+
+    const approval = result.unwrap();
+
+    return this.ok(reply, {
+      success: true,
+      data: {
+        id: approval.id,
+        campaignId: approval.campaignId,
+        status: approval.status,
+        submittedItems: approval.submittedItems,
+        reviewedAt: approval.reviewedAt,
+        reviewedBy: approval.reviewedBy,
+        comment: approval.comment,
+      },
+      message: `Approval ${action === 'approve' ? 'approved' : 'rejected'} successfully`,
+    });
+  }
+
+  async getStatistics(
+    request: FastifyRequest & AuthenticatedRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    this.requireAdmin(request);
+
+    const result = await this.approvalRepository.getStatistics();
+    if (result.isErr()) {
+      throw ErrorConverter.fromResult(result);
+    }
+
+    const stats = result.unwrap();
+
+    return this.ok(reply, {
+      success: true,
+      data: stats,
+    });
   }
 }

@@ -26,6 +26,27 @@ export const TOKENS = {
   DashboardSocialsRepositoryToken: Symbol.for('DashboardSocialsRepository'),
   DashboardSocialsServiceToken: Symbol.for('DashboardSocialsService'),
   DashboardSocialsControllerToken: Symbol.for('DashboardSocialsController'),
+
+  // MISSING TOKENS - ADDED
+  SubmissionRepositoryToken: Symbol.for('SubmissionRepository'),
+  SubmissionMapperToken: Symbol.for('SubmissionMapper'),
+  DashboardApprovalRepositoryToken: Symbol.for('DashboardApprovalRepository'),
+  DashboardCampaignSummaryRepositoryToken: Symbol.for(
+    'DashboardCampaignSummaryRepository'
+  ),
+  DashboardCampaignSummaryMapperToken: Symbol.for(
+    'DashboardCampaignSummaryMapper'
+  ),
+  DashboardCampaignSummaryServiceToken: Symbol.for(
+    'DashboardCampaignSummaryService'
+  ),
+  DashboardCampaignSummaryControllerToken: Symbol.for(
+    'DashboardCampaignSummaryController'
+  ),
+  SubmitDashboardItemsUseCaseToken: Symbol.for('SubmitDashboardItemsUseCase'),
+  DashboardSubmissionControllerToken: Symbol.for(
+    'DashboardSubmissionController'
+  ),
 } as const;
 
 export const setupDependencyInjection = async (): Promise<void> => {
@@ -43,6 +64,18 @@ export const setupDependencyInjection = async (): Promise<void> => {
   const { ModelRegistryService } = await import(
     '@/infrastructure/database/model-registry.service'
   );
+
+  // Core services
+  container.registerSingleton(TOKENS.LoggerServiceToken, LoggerService);
+  container.registerSingleton(TOKENS.CacheServiceToken, CacheService);
+  container.registerSingleton(TOKENS.DatabaseServiceToken, DatabaseService);
+  container.registerSingleton(TOKENS.ORMAdapterToken, SequelizeAdapter);
+  container.registerSingleton(
+    TOKENS.ModelRegistryServiceToken,
+    ModelRegistryService
+  );
+
+  // Campaign feature
   const { CampaignMapper } = await import(
     '@/infrastructure/mappers/campaign.mapper'
   );
@@ -52,6 +85,18 @@ export const setupDependencyInjection = async (): Promise<void> => {
   const { CampaignInfoRepository } = await import(
     '@/infrastructure/repositories/campaign-info.repository'
   );
+
+  container.registerSingleton(TOKENS.CampaignMapperToken, CampaignMapper);
+  container.registerSingleton(
+    TOKENS.CampaignRepositoryToken,
+    CampaignRepository
+  );
+  container.registerSingleton(
+    TOKENS.CampaignInfoRepositoryToken,
+    CampaignInfoRepository
+  );
+
+  // Dashboard Campaign Info feature
   const { DashboardCampaignInfoMapper } = await import(
     '@/infrastructure/mappers/dashboard-campaign-info.mapper'
   );
@@ -64,43 +109,7 @@ export const setupDependencyInjection = async (): Promise<void> => {
   const { DashboardCampaignInfoController } = await import(
     '@/presentation/controllers/dashboard-campaign-info.controller'
   );
-  const { DashboardSocialsMapper } = await import(
-    '@/infrastructure/mappers/dashboard-socials.mapper'
-  );
-  const { DashboardSocialsRepository } = await import(
-    '@/infrastructure/repositories/dashboard-socials.repository'
-  );
-  const { DashboardSocialsService } = await import(
-    '@/application/services/dashboard-socials.service'
-  );
-  const { DashboardSocialsController } = await import(
-    '@/presentation/controllers/dashboard-socials.controller'
-  );
 
-  // Core services
-  container.registerSingleton(TOKENS.LoggerServiceToken, LoggerService);
-  container.registerSingleton(TOKENS.CacheServiceToken, CacheService);
-  container.registerSingleton(TOKENS.DatabaseServiceToken, DatabaseService);
-
-  // ORM abstraction layer
-  container.registerSingleton(TOKENS.ORMAdapterToken, SequelizeAdapter);
-  container.registerSingleton(
-    TOKENS.ModelRegistryServiceToken,
-    ModelRegistryService
-  );
-
-  // Campaign feature
-  container.registerSingleton(TOKENS.CampaignMapperToken, CampaignMapper);
-  container.registerSingleton(
-    TOKENS.CampaignRepositoryToken,
-    CampaignRepository
-  );
-  container.registerSingleton(
-    TOKENS.CampaignInfoRepositoryToken,
-    CampaignInfoRepository
-  );
-
-  // Dashboard Campaign Info feature
   container.registerSingleton(
     TOKENS.DashboardCampaignInfoMapperToken,
     DashboardCampaignInfoMapper
@@ -118,7 +127,51 @@ export const setupDependencyInjection = async (): Promise<void> => {
     DashboardCampaignInfoController
   );
 
+  // Dashboard Campaign Summary feature
+  const { DashboardCampaignSummaryMapper } = await import(
+    '@/infrastructure/mappers/dashboard-campaign-summary.mapper'
+  );
+  const { DashboardCampaignSummaryRepository } = await import(
+    '@/infrastructure/repositories/dashboard-campaign-summary.repository'
+  );
+  const { DashboardCampaignSummaryService } = await import(
+    '@/application/services/dashboard-campaign-summary.service'
+  );
+  const { DashboardCampaignSummaryController } = await import(
+    '@/presentation/controllers/dashboard-campaign-summary.controller'
+  );
+
+  container.registerSingleton(
+    TOKENS.DashboardCampaignSummaryMapperToken,
+    DashboardCampaignSummaryMapper
+  );
+  container.registerSingleton(
+    TOKENS.DashboardCampaignSummaryRepositoryToken,
+    DashboardCampaignSummaryRepository
+  );
+  container.registerSingleton(
+    TOKENS.DashboardCampaignSummaryServiceToken,
+    DashboardCampaignSummaryService
+  );
+  container.registerSingleton(
+    TOKENS.DashboardCampaignSummaryControllerToken,
+    DashboardCampaignSummaryController
+  );
+
   // Dashboard Socials feature
+  const { DashboardSocialsMapper } = await import(
+    '@/infrastructure/mappers/dashboard-socials.mapper'
+  );
+  const { DashboardSocialsRepository } = await import(
+    '@/infrastructure/repositories/dashboard-socials.repository'
+  );
+  const { DashboardSocialsService } = await import(
+    '@/application/services/dashboard-socials.service'
+  );
+  const { DashboardSocialsController } = await import(
+    '@/presentation/controllers/dashboard-socials.controller'
+  );
+
   container.registerSingleton(
     TOKENS.DashboardSocialsMapperToken,
     DashboardSocialsMapper
@@ -134,5 +187,49 @@ export const setupDependencyInjection = async (): Promise<void> => {
   container.registerSingleton(
     TOKENS.DashboardSocialsControllerToken,
     DashboardSocialsController
+  );
+
+  // NEW: Submission feature
+  const { SubmissionMapper } = await import(
+    '@/infrastructure/mappers/submission.mapper'
+  );
+  const { SubmissionRepository } = await import(
+    '@/infrastructure/repositories/submission.repository'
+  );
+
+  container.registerSingleton(TOKENS.SubmissionMapperToken, SubmissionMapper);
+  container.registerSingleton(
+    TOKENS.SubmissionRepositoryToken,
+    SubmissionRepository
+  );
+
+  // NEW: Approval feature
+  const { DashboardApprovalRepository } = await import(
+    '@/infrastructure/repositories/dashboard-approval.repository'
+  );
+
+  container.registerSingleton(
+    TOKENS.DashboardApprovalRepositoryToken,
+    DashboardApprovalRepository
+  );
+
+  // NEW: Use Cases
+  const { SubmitDashboardItemsUseCase } = await import(
+    '@/application/use-cases/submit-dashboard-items.use-case'
+  );
+
+  container.registerSingleton(
+    TOKENS.SubmitDashboardItemsUseCaseToken,
+    SubmitDashboardItemsUseCase
+  );
+
+  // NEW: Controllers
+  const { DashboardSubmissionController } = await import(
+    '@/presentation/controllers/dashboard-submission.controller'
+  );
+
+  container.registerSingleton(
+    TOKENS.DashboardSubmissionControllerToken,
+    DashboardSubmissionController
   );
 };
