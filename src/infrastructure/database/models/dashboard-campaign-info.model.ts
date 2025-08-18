@@ -1,8 +1,9 @@
 import { DataTypes } from '@/infrastructure/persistence/orm/base-orm-model';
 
+import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
+
 /**
  * ORM-agnostic model schema definition for Dashboard Campaign Info
- * Contains only business data - approval workflow handled by separate DashboardApprovals table
  */
 export const DashboardCampaignInfoSchema = {
   name: 'DashboardCampaignInfo',
@@ -41,6 +42,12 @@ export const DashboardCampaignInfoSchema = {
       allowNull: true,
     },
 
+    status: {
+      type: DataTypes.ENUM(...Object.values(ApprovalStatus)),
+      allowNull: false,
+      defaultValue: ApprovalStatus.DRAFT,
+    },
+
     // Standard timestamps
     createdAt: {
       type: DataTypes.DATE,
@@ -68,21 +75,6 @@ export const DashboardCampaignInfoSchema = {
         foreignKey: 'campaignId',
         targetKey: 'campaignId',
         as: 'campaign',
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-      },
-    },
-    // One-to-one relationship with dashboard approval
-    DashboardApproval: {
-      type: 'hasOne',
-      target: 'DashboardApprovals',
-      options: {
-        foreignKey: 'entityId',
-        sourceKey: 'id',
-        as: 'approval',
-        scope: {
-          entityType: 'dashboard-campaign-info',
-        },
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
       },

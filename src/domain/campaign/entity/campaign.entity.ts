@@ -1,4 +1,5 @@
-import { Result, Ok, Err } from 'oxide.ts';
+import { Err, Ok, Result } from 'oxide.ts';
+
 import { Entity } from '@/domain/core/entity';
 
 export interface CampaignProps {
@@ -47,6 +48,7 @@ export interface CampaignProps {
   isShowOnExplorePage?: boolean;
   investmentConfiguration?: any | null;
   dividendRate?: number | null;
+  issuerId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   deletedAt?: Date | null;
@@ -201,6 +203,7 @@ export class Campaign extends Entity<CampaignProps> {
       isShowOnExplorePage: props.isShowOnExplorePage ?? true,
       investmentConfiguration: props.investmentConfiguration || null,
       dividendRate: props.dividendRate || null,
+      issuerId: props.issuerId || null,
       createdAt: props.createdAt || new Date(),
       updatedAt: props.updatedAt || new Date(),
       deletedAt: props.deletedAt || null,
@@ -256,6 +259,7 @@ export class Campaign extends Entity<CampaignProps> {
       isShowOnExplorePage: props.isShowOnExplorePage ?? true,
       investmentConfiguration: props.investmentConfiguration || null,
       dividendRate: props.dividendRate || null,
+      issuerId: props.issuerId || null,
       createdAt: props.createdAt || new Date(),
       updatedAt: props.updatedAt || new Date(),
       deletedAt: props.deletedAt || null,
@@ -301,6 +305,13 @@ export class Campaign extends Entity<CampaignProps> {
   }
   get updatedAt(): Date {
     return this.props.updatedAt;
+  }
+  get dividendRate(): number | undefined {
+    return this.props.dividendRate || undefined;
+  }
+
+  get issuerId(): string | undefined {
+    return this.props.issuerId || undefined;
   }
 
   // Business methods
@@ -435,6 +446,7 @@ export class Campaign extends Entity<CampaignProps> {
       isShowOnExplorePage: this.props.isShowOnExplorePage,
       investmentConfiguration: this.props.investmentConfiguration,
       dividendRate: this.props.dividendRate,
+      issuerId: this.props.issuerId,
       createdAt: this.props.createdAt,
       updatedAt: this.props.updatedAt,
     };

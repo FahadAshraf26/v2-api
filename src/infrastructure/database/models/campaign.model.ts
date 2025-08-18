@@ -45,6 +45,7 @@ export interface CampaignModelAttributes {
   isShowOnExplorePage: boolean;
   investmentConfiguration?: any | null;
   dividendRate?: number | null;
+  issuerId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
@@ -238,6 +239,10 @@ export const CampaignSchema = {
       type: DataTypes.FLOAT,
       allowNull: true,
     },
+    issuerId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -327,6 +332,15 @@ export const CampaignSchema = {
         foreignKey: 'campaignId',
         sourceKey: 'campaignId',
         as: 'roughBudgets',
+      },
+    },
+    Issuer: {
+      type: 'belongsTo',
+      target: 'Issuer',
+      options: {
+        foreignKey: 'issuerId',
+        targetKey: 'issuerId',
+        as: 'issuer',
       },
     },
   },

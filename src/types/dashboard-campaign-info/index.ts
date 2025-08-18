@@ -1,7 +1,5 @@
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
-import { DashboardApprovalProps } from '@/types/approval';
-
 export interface DashboardCampaignInfoModelAttributes {
   id: string;
   campaignId: string;
@@ -9,6 +7,7 @@ export interface DashboardCampaignInfoModelAttributes {
   investorPitch?: string | null;
   isShowPitch?: boolean | null;
   investorPitchTitle?: string | null;
+  status: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,18 +15,13 @@ export interface DashboardCampaignInfoModelAttributes {
 export interface DashboardCampaignInfoProps {
   id: string;
   campaignId: string;
-  milestones?: string;
-  investorPitch?: string;
-  isShowPitch?: boolean;
-  investorPitchTitle?: string;
+  milestones?: string | null;
+  investorPitch?: string | null;
+  isShowPitch?: boolean | false;
+  investorPitchTitle?: string | null;
   status: ApprovalStatus;
   createdAt: Date;
   updatedAt: Date;
-  submittedAt?: Date;
-  reviewedAt?: Date;
-  submittedBy?: string;
-  reviewedBy?: string;
-  comment?: string;
 }
 
 /**
@@ -35,7 +29,7 @@ export interface DashboardCampaignInfoProps {
  */
 export interface DashboardCampaignInfoWithApproval {
   info: DashboardCampaignInfoModelAttributes;
-  approval?: DashboardApprovalProps;
+  approval?: any;
 }
 
 export interface CreateDashboardCampaignInfoDto {
@@ -47,6 +41,7 @@ export interface CreateDashboardCampaignInfoDto {
 }
 
 export interface UpdateDashboardCampaignInfoDto {
+  campaignId: string;
   milestones?: string[];
   investorPitch?: string;
   isShowPitch?: boolean;

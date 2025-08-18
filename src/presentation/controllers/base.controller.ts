@@ -45,12 +45,18 @@ export abstract class BaseController {
   /**
    * Standard success responses
    */
-  protected ok<T>(reply: FastifyReply, data?: T, message?: string): void {
-    reply.status(200).send({
-      success: true,
-      data,
-      message: message || 'Operation successful',
-    });
+  protected ok<T>(reply: FastifyReply, data?: T): void {
+    let payload = data;
+    if (
+      data &&
+      (data as any).isOk &&
+      typeof (data as any).unwrap === 'function'
+    ) {
+      payload = (data as any).unwrap();
+    }
+
+    // Send the raw payload directly to avoid subtle serialization issues with Fastify
+    reply.status(200).send(payload);
   }
 
   protected created<T>(reply: FastifyReply, data: T, message?: string): void {

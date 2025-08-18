@@ -1,13 +1,25 @@
-import { injectable, inject } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
-import { BaseRepository } from './base.repository';
+import { Err, Ok, Result } from 'oxide.ts';
+import { inject, injectable } from 'tsyringe';
+
+import { TOKENS } from '@/config/tokens';
+
 import { Campaign } from '@/domain/campaign/entity/campaign.entity';
+import { PaginatedResult } from '@/domain/core/repository.interface';
+
 import { CampaignModelAttributes } from '@/infrastructure/database/models/campaign.model';
+import { EventBus } from '@/infrastructure/events/event-bus';
+import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { CampaignMapper } from '@/infrastructure/mappers/campaign.mapper';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
-import { LoggerService } from '@/infrastructure/logging/logger.service';
-import { EventBus } from '@/infrastructure/events/event-bus';
-import { TOKENS } from '@/config/dependency-injection';
+
+import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
+
+import {
+  GetPendingCampaignsDto,
+  PendingCampaignDto,
+} from '@/types/campaign/get-pending-campaigns.dto';
+
+import { BaseRepository } from './base.repository';
 
 @injectable()
 export class CampaignRepository extends BaseRepository<
@@ -325,6 +337,105 @@ export class CampaignRepository extends BaseRepository<
           `Failed to update campaign stage: ${(error as Error).message}`
         )
       );
+    }
+  }
+
+  async findPendingWithFilters(
+    dto: GetPendingCampaignsDto
+  ): Promise<Result<PaginatedResult<PendingCampaignDto>, Error>> {
+    try {
+      const page = dto.page || 1;
+      const perPage = dto.perPage || 10;
+      const offset = (page - 1) * perPage;
+
+      const replacements: any = {
+        status: ApprovalStatus.PENDING,
+        limit: perPage,
+        offset,
+      };
+
+      let whereClause = '';
+      if (dto.campaignStage) {
+        whereClause += ' AND c.`campaignStage` = :campaignStage';
+        replacements.campaignStage = dto.campaignStage;
+      }
+      if (dto.searchTerm) {
+        whereClause += ' AND c.`campaignName` LIKE :searchTerm';
+        replacements.searchTerm = `%${dto.searchTerm}%`;
+      }
+
+      const dataQuery = `
+        WITH AllDashboardItems AS (
+          SELECT \`campaignId\`, \`id\`, 'dashboard-campaign-info' as \`entityType\`, \`status\` FROM \`dashboardCampaignInfo\`
+          UNION ALL
+          SELECT \`campaignId\`, \`id\`, 'dashboard-campaign-summary' as \`entityType\`, \`status\` FROM \`dashboardCampaignSummary\`
+          UNION ALL
+          SELECT \`campaignId\`, \`id\`, 'dashboard-socials' as \`entityType\`, \`status\` FROM \`dashboardSocials\`
+        ),
+        PendingDashboardItems AS (
+          SELECT * FROM AllDashboardItems WHERE \`status\` = :status
+        ),
+        LatestApprovalHistory AS (
+          SELECT
+              pdi.\`campaignId\`,
+              ah.\`userId\` as \`submittedBy\`,
+              ah.\`createdAt\` as \`submittedAt\`,
+              ROW_NUMBER() OVER(PARTITION BY pdi.\`campaignId\` ORDER BY ah.\`createdAt\` DESC) as rn
+          FROM PendingDashboardItems pdi
+          JOIN \`approvalHistory\` ah ON pdi.\`id\` = ah.\`entityId\` AND pdi.\`entityType\` = ah.\`entityType\`
+          WHERE ah.status = :status
+        )
+        SELECT
+            c.\`campaignName\`,
+            c.\`campaignStage\`,
+            lah.\`submittedBy\`,
+            lah.\`submittedAt\`,
+            :status as status
+        FROM \`campaigns\` c
+        JOIN LatestApprovalHistory lah ON c.\`campaignId\` = lah.\`campaignId\` AND lah.rn = 1
+        WHERE 1=1 ${whereClause}
+        ORDER BY lah.\`submittedAt\` DESC
+        LIMIT :limit OFFSET :offset
+      `;
+
+      const countQuery = `
+        WITH AllDashboardItems AS (
+            SELECT \`campaignId\`, \`status\` FROM \`dashboardCampaignInfo\`
+            UNION ALL
+            SELECT \`campaignId\`, \`status\` FROM \`dashboardCampaignSummary\`
+            UNION ALL
+            SELECT \`campaignId\`, \`status\` FROM \`dashboardSocials\`
+        ),
+        PendingCampaigns AS (
+            SELECT DISTINCT \`campaignId\` FROM AllDashboardItems WHERE \`status\` = :status
+        )
+        SELECT COUNT(c.\`campaignId\`) as count
+        FROM \`campaigns\` c
+        JOIN PendingCampaigns pc ON c.\`campaignId\` = pc.\`campaignId\`
+        WHERE 1=1 ${whereClause}
+      `;
+
+      const [results, countResult] = await Promise.all([
+        this.ormAdapter.rawQuery(dataQuery, replacements),
+        this.ormAdapter.rawQuery(countQuery, replacements),
+      ]);
+
+      const total = countResult[0]?.count || 0;
+
+      const paginatedResult = {
+        items: results as PendingCampaignDto[],
+        total,
+        page,
+        perPage,
+        totalPages: Math.ceil(total / perPage),
+        hasNext: page * perPage < total,
+        hasPrevious: page > 1,
+      };
+
+      return Ok(paginatedResult);
+    } catch (error) {
+      this.logger.error('Error finding pending campaigns with filters', error);
+      return Err(new Error('Failed to fetch pending campaigns'));
     }
   }
 }

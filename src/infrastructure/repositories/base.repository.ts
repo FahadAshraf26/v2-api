@@ -1,7 +1,7 @@
 import { Err, Ok, Result } from 'oxide.ts';
 import { inject } from 'tsyringe';
 
-import { TOKENS } from '@/config/dependency-injection';
+import { TOKENS } from '@/config/tokens';
 
 import { AggregateRoot } from '@/domain/core/aggregate-root';
 import { Entity } from '@/domain/core/entity';
@@ -420,11 +420,9 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         options
       );
 
-      if (affectedRows === 0) {
-        return Err(
-          new Error(`${this.getEntityName()} not found or no changes made`)
-        );
-      }
+      // The findById check at the start of this method confirms the entity exists.
+      // If affectedRows is 0, it means the data was the same and no update was needed.
+      // This is a successful outcome, so we no longer throw an error here.
 
       // Fetch the updated entity
       const updatedResult = await this.findById(id);
@@ -600,11 +598,24 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
   protected mapDomainUpdatesToPersistence(
     updates: Partial<TDomain>
   ): Record<string, any> {
-    const mapped = this.mapDomainCriteriaToPersistence(updates);
+    let mapped: Record<string, any>;
+
+    // If a full entity is passed, use the dedicated toPersistence method.
+    // Otherwise, map the partial update object.
+    if (updates instanceof Entity) {
+      mapped = this.toPersistence(updates as TDomain);
+    } else {
+      mapped = this.mapDomainCriteriaToPersistence(updates);
+    }
 
     // Add updated timestamp if not present
     if (!mapped['updatedAt']) {
       mapped['updatedAt'] = new Date();
+    }
+
+    // Never update the primary key
+    if (mapped['id']) {
+      delete mapped['id'];
     }
 
     return mapped;

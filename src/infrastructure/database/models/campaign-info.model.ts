@@ -8,7 +8,7 @@ export interface CampaignInfoModelAttributes {
   milestones: string;
   investorPitch: string;
   risks: string;
-  target: JSON;
+  target: JSON | null;
   isShowPitch: boolean;
   investorPitchTitle: string;
   createdAt: Date;

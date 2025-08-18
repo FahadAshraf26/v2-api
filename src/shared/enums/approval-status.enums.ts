@@ -2,6 +2,7 @@
  * Simplified approval status enum for workflow management
  */
 export enum ApprovalStatus {
+  DRAFT = 'DRAFT', // User is working on the item
   PENDING = 'PENDING', // Waiting for admin review
   APPROVED = 'APPROVED', // Approved and published
   REJECTED = 'REJECTED', // Rejected with feedback
@@ -42,6 +43,7 @@ export const VALID_STATUS_TRANSITIONS: Record<
   ApprovalStatus,
   ApprovalStatus[]
 > = {
+  [ApprovalStatus.DRAFT]: [ApprovalStatus.PENDING],
   [ApprovalStatus.PENDING]: [ApprovalStatus.APPROVED, ApprovalStatus.REJECTED],
   [ApprovalStatus.APPROVED]: [
     // Approved is final state - no transitions
@@ -66,6 +68,8 @@ export const isValidStatusTransition = (
  */
 export const getAvailableActions = (status: ApprovalStatus): string[] => {
   switch (status) {
+    case ApprovalStatus.DRAFT:
+      return ['submit', 'edit', 'delete'];
     case ApprovalStatus.PENDING:
       return ['approve', 'reject', 'cancel'];
 
@@ -85,6 +89,8 @@ export const getAvailableActions = (status: ApprovalStatus): string[] => {
  */
 export const getStatusLabel = (status: ApprovalStatus): string => {
   switch (status) {
+    case ApprovalStatus.DRAFT:
+      return 'Draft';
     case ApprovalStatus.PENDING:
       return 'Pending Review';
     case ApprovalStatus.APPROVED:

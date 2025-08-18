@@ -1,89 +1,67 @@
-export interface DashboardSubmissionRequest {
+export interface SubmitForReviewDto {
   campaignId: string;
-  entities: {
-    dashboardCampaignInfo?: boolean;
-    dashboardCampaignSummary?: boolean;
-    dashboardSocials?: boolean;
-  };
-  submissionNote?: string;
+  userId: string;
+  entityTypes: string[];
 }
 
-export interface DashboardSubmissionResponse {
-  success: boolean;
-  submissionId: string;
-  results: {
-    dashboardCampaignInfo?: {
-      success: boolean;
-      entityId?: string;
-      error?: string;
-    };
-    dashboardCampaignSummary?: {
-      success: boolean;
-      entityId?: string;
-      error?: string;
-    };
-    dashboardSocials?: {
-      success: boolean;
-      entityId?: string;
-      error?: string;
-    };
-  };
-  notifications: {
-    slack: {
-      sent: boolean;
-      error?: string;
-    };
-    email: {
-      sent: boolean;
-      recipients: string[];
-      error?: string;
-    };
-  };
-}
-
-export interface NotificationData {
+export interface ReviewSubmissionDto {
   campaignId: string;
-  campaignName?: string;
-  submittedBy: string;
-  submittedEntities: string[];
-  submissionNote?: string;
-  submissionId: string;
-  timestamp: Date;
+  adminId: string;
+  entityTypes: (
+    | 'dashboard-campaign-info'
+    | 'dashboard-campaign-summary'
+    | 'dashboard-socials'
+  )[];
+  action: 'approve' | 'reject';
+  comment?: string;
 }
 
-export interface EmailRecipient {
-  email: string;
-  name?: string;
-  role: 'admin' | 'owner';
-}
-
-export const dashboardSubmissionSchema = {
+export const submitForReviewSchema = {
   type: 'object',
-  required: ['campaignId', 'entities'],
   properties: {
     campaignId: { type: 'string', format: 'uuid' },
-    entities: {
-      type: 'object',
-      properties: {
-        dashboardCampaignInfo: { type: 'boolean' },
-        dashboardCampaignSummary: { type: 'boolean' },
-        dashboardSocials: { type: 'boolean' },
-      },
-      additionalProperties: false,
-      minProperties: 1,
+    userId: { type: 'string' },
+    entityTypes: {
+      type: 'array',
+      items: { type: 'string' },
     },
-    submissionNote: { type: 'string', maxLength: 500 },
   },
-  additionalProperties: false,
-} as const;
+  required: ['campaignId', 'userId', 'entityTypes'],
+};
+
+export const reviewSubmissionSchema = {
+  type: 'object',
+  properties: {
+    campaignId: { type: 'string', format: 'uuid' },
+    adminId: { type: 'string' },
+    entityTypes: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: [
+          'dashboard-campaign-info',
+          'dashboard-campaign-summary',
+          'dashboard-socials',
+        ],
+      },
+    },
+    action: { type: 'string', enum: ['approve', 'reject'] },
+    comment: { type: 'string' },
+  },
+  required: ['campaignId', 'adminId', 'entityTypes', 'action'],
+};
+
+export const successResponseSchema = {
+  type: 'object',
+  properties: {
+    success: { type: 'boolean' },
+    message: { type: 'string' },
+  },
+};
 
 export const errorSchema = {
   type: 'object',
   properties: {
-    statusCode: { type: 'number' },
-    code: { type: 'string' },
-    message: { type: 'string' },
-    timestamp: { type: 'string' },
-    requestId: { type: 'string' },
+    error: { type: 'string' },
   },
-} as const;
+};

@@ -1,251 +1,85 @@
-import { injectable } from 'tsyringe';
-import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
 import { randomUUID } from 'crypto';
+import { injectable } from 'tsyringe';
+
+import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
+
+import { CampaignInfoModelAttributes } from '@/infrastructure/database/models/campaign-info.model';
+
+import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
+
 import {
   DashboardCampaignInfoModelAttributes,
   DashboardCampaignInfoProps,
-  DashboardCampaignInfoWithApproval,
 } from '@/types/dashboard-campaign-info';
-import { DashboardApprovalProps } from '@/types/approval';
-import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
 @injectable()
 export class DashboardCampaignInfoMapper {
-  /**
-   * Map from joined data (business table + approval table) to domain entity
-   */
-  toDomain(data: DashboardCampaignInfoWithApproval): DashboardCampaignInfo {
-    const props: DashboardCampaignInfoProps = {
-      id: data.info.id,
-      campaignId: data.info.campaignId,
-      status: this.mapApprovalStatus(data.approval?.status),
-      createdAt: data.info.createdAt,
-      updatedAt: data.info.updatedAt,
-    };
-
-    // Add business fields if they exist
-    if (data.info.milestones) {
-      props.milestones = data.info.milestones;
-    }
-    if (data.info.investorPitch) {
-      props.investorPitch = data.info.investorPitch;
-    }
-    if (data.info.isShowPitch !== null && data.info.isShowPitch !== undefined) {
-      props.isShowPitch = data.info.isShowPitch;
-    }
-    if (data.info.investorPitchTitle) {
-      props.investorPitchTitle = data.info.investorPitchTitle;
-    }
-
-    // Add approval-related properties if approval data exists
-    if (data.approval) {
-      if (data.approval.submittedAt) {
-        props.submittedAt = data.approval.submittedAt;
-      }
-      if (data.approval.reviewedAt) {
-        props.reviewedAt = data.approval.reviewedAt;
-      }
-      if (data.approval.submittedBy) {
-        props.submittedBy = data.approval.submittedBy;
-      }
-      if (data.approval.reviewedBy) {
-        props.reviewedBy = data.approval.reviewedBy;
-      }
-      if (data.approval.comment) {
-        props.comment = data.approval.comment;
-      }
-    }
-
-    return DashboardCampaignInfo.fromPersistence(props);
-  }
-
-  /**
-   * Map from business model attributes only (for creation/updates)
-   */
-  toDomainFromBusinessData(model: DashboardCampaignInfoModelAttributes): DashboardCampaignInfo {
+  toDomain(model: DashboardCampaignInfoModelAttributes): DashboardCampaignInfo {
     const props: DashboardCampaignInfoProps = {
       id: model.id,
       campaignId: model.campaignId,
-      status: ApprovalStatus.PENDING, // Default status for new items
+      milestones: model.milestones || null,
+      investorPitch: model.investorPitch || null,
+      isShowPitch: model.isShowPitch || false,
+      investorPitchTitle: model.investorPitchTitle || null,
+      status: model.status as ApprovalStatus,
       createdAt: model.createdAt,
       updatedAt: model.updatedAt,
     };
-
-    // Add optional business fields if they exist
-    if (model.milestones) {
-      props.milestones = model.milestones;
-    }
-    if (model.investorPitch) {
-      props.investorPitch = model.investorPitch;
-    }
-    if (model.isShowPitch !== null && model.isShowPitch !== undefined) {
-      props.isShowPitch = model.isShowPitch;
-    }
-    if (model.investorPitchTitle) {
-      props.investorPitchTitle = model.investorPitchTitle;
-    }
-
     return DashboardCampaignInfo.fromPersistence(props);
   }
 
-  /**
-   * Map from domain entity to business table persistence model (no approval fields)
-   */
+  toPersistence(
+    domain: DashboardCampaignInfo
+  ): DashboardCampaignInfoModelAttributes {
+    return domain.toObject();
+  }
+
+  toDomainFromBusinessData(
+    model: DashboardCampaignInfoModelAttributes
+  ): DashboardCampaignInfo {
+    return this.toDomain(model);
+  }
+
   toBusinessPersistence(
     domain: DashboardCampaignInfo
   ): DashboardCampaignInfoModelAttributes {
-    return {
-      id: domain.id,
-      campaignId: domain.campaignId,
-      milestones: domain.milestones || null,
-      investorPitch: domain.investorPitch || null,
-      isShowPitch: domain.isShowPitch || null,
-      investorPitchTitle: domain.investorPitchTitle || null,
-      createdAt: domain.createdAt,
-      updatedAt: domain.updatedAt,
-    };
+    return this.toPersistence(domain);
   }
 
-  /**
-   * Map for business table updates (only business fields)
-   */
   toBusinessPersistenceUpdate(
     domain: DashboardCampaignInfo
   ): Partial<DashboardCampaignInfoModelAttributes> {
-    const persistenceData: Partial<DashboardCampaignInfoModelAttributes> = {
-      milestones: domain.milestones || null,
-      investorPitch: domain.investorPitch || null,
-      isShowPitch: domain.isShowPitch || null,
-      investorPitchTitle: domain.investorPitchTitle || null,
-      updatedAt: domain.updatedAt,
-    };
-
-    return persistenceData;
+    return domain.toObject();
   }
 
-  /**
-   * Map domain criteria to business table query criteria
-   */
   toBusinessPersistenceCriteria(
     domainCriteria: Record<string, any>
   ): Record<string, any> {
-    const persistenceCriteria: Record<string, any> = {};
-
-    for (const [key, value] of Object.entries(domainCriteria)) {
-      if (value === undefined) {
-        continue;
-      }
-
-      // Only map business fields, ignore approval-related criteria
-      switch (key) {
-        case 'id':
-        case 'campaignId':
-        case 'milestones':
-        case 'investorPitch':
-        case 'isShowPitch':
-        case 'investorPitchTitle':
-        case 'createdAt':
-        case 'updatedAt':
-          persistenceCriteria[key] = value;
-          break;
-
-        // Ignore approval-related fields as they're handled separately
-        case 'status':
-        case 'submittedAt':
-        case 'reviewedAt':
-        case 'submittedBy':
-        case 'reviewedBy':
-        case 'comment':
-          break;
-
-        default:
-          // For unknown fields, just pass through
-          persistenceCriteria[key] = value;
-          break;
-      }
-    }
-
-    return persistenceCriteria;
+    return domainCriteria;
   }
 
-  /**
-   * Map multiple joined data to domain entities
-   */
-  toDomainList(
-    dataList: DashboardCampaignInfoWithApproval[]
-  ): DashboardCampaignInfo[] {
-    return dataList.map(data => this.toDomain(data));
-  }
-
-  /**
-   * Map multiple business models to domain entities (with default status)
-   */
-  toDomainListFromBusinessData(
-    models: DashboardCampaignInfoModelAttributes[]
-  ): DashboardCampaignInfo[] {
-    return models.map(model => this.toDomainFromBusinessData(model));
-  }
-
-  /**
-   * Map approval status from database value to domain enum
-   */
-  private mapApprovalStatus(status?: string): ApprovalStatus {
-    switch (status) {
-      case 'approved':
-        return ApprovalStatus.APPROVED;
-      case 'rejected':
-        return ApprovalStatus.REJECTED;
-      case 'pending':
-        return ApprovalStatus.PENDING;
-      default:
-        return ApprovalStatus.PENDING; // Default for items without approval record
-    }
-  }
-
-  /**
-   * Create domain entity from creation data
-   */
-  createDomainFromData(data: {
-    campaignId: string;
-    milestones?: string;
-    investorPitch?: string;
-    isShowPitch?: boolean;
-    investorPitchTitle?: string;
-    userId?: string;
-  }): DashboardCampaignInfo {
-    const createProps: any = {
-      campaignId: data.campaignId,
-    };
-
-    if (data.milestones) {
-      createProps.milestones = data.milestones;
-    }
-    if (data.investorPitch) {
-      createProps.investorPitch = data.investorPitch;
-    }
-    if (data.isShowPitch !== undefined) {
-      createProps.isShowPitch = data.isShowPitch;
-    }
-    if (data.investorPitchTitle) {
-      createProps.investorPitchTitle = data.investorPitchTitle;
-    }
-
-    return DashboardCampaignInfo.create(createProps);
-  }
-
-  /**
-   * Legacy method for backward compatibility - converting to campaignInfo structure
-   */
-  toCampaignInfoPersistence(domain: DashboardCampaignInfo): any {
+  toCampaignInfoPersistence(
+    domain: DashboardCampaignInfo
+  ): Partial<CampaignInfoModelAttributes> {
+    const {
+      id,
+      createdAt,
+      updatedAt,
+      status,
+      milestones,
+      investorPitch,
+      isShowPitch,
+      investorPitchTitle,
+      ...rest
+    } = domain.toObject();
     return {
-      id: randomUUID(),
-      campaignId: domain.campaignId,
-      milestones: domain.milestones,
-      investorPitch: domain.investorPitch,
-      isShowPitch: domain.isShowPitch,
-      investorPitchTitle: domain.investorPitchTitle,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      ...rest,
+      campaignInfoId: randomUUID(),
+      milestones: milestones || '',
+      investorPitch: investorPitch || '',
+      isShowPitch: isShowPitch || false,
+      investorPitchTitle: investorPitchTitle || '',
     };
   }
 }

@@ -31,11 +31,16 @@ export interface IORMAdapter {
     where: any,
     options?: any
   ): Promise<[number, T[]]>;
-  delete(modelName: string, where: any, options?: any): Promise<number>;
+  delete(
+    modelName: string,
+    criteria: Record<string, any>,
+    options?: { transaction?: any; force?: boolean }
+  ): Promise<number>;
   findByPk<T>(modelName: string, id: string, options?: any): Promise<T | null>;
   transaction<T>(callback: (transaction: any) => Promise<T>): Promise<T>;
   getModel(modelName: string): any;
   registerSchema(schema: ModelSchema): void;
+  rawQuery(query: string, replacements?: unknown[]): Promise<any[]>;
 }
 
 export interface ITransaction {

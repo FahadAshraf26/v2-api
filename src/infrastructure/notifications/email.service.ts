@@ -1,4 +1,3 @@
-// @ts-ignore - form-data types not needed for runtime
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { Err, Ok, Result } from 'oxide.ts';
@@ -17,7 +16,7 @@ export class EmailService {
   constructor(@inject(LoggerService) private readonly logger: LoggerService) {
     const apiKey = process.env['MAILGUN_API_KEY'];
     this.domain = process.env['MAILGUN_DOMAIN'] || '';
-    this.fromEmail = process.env['FROM_EMAIL'] || 'noreply@honeycomb.com';
+    this.fromEmail = process.env['FROM_EMAIL'] || '';
 
     if (!apiKey || !this.domain) {
       throw new Error(

@@ -1,158 +1,62 @@
-import { Err, Ok, Result } from 'oxide.ts';
+import { Result } from 'oxide.ts';
 import { inject, injectable } from 'tsyringe';
 
-import { TOKENS } from '@/config/dependency-injection';
+import { TOKENS } from '@/config/tokens';
+
+import { CampaignInfo } from '@/domain/campaign-info/entity/campaign-info.entity';
 
 import { CampaignInfoModelAttributes } from '@/infrastructure/database/models/campaign-info.model';
+import { EventBus } from '@/infrastructure/events/event-bus';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
+import { CampaignInfoMapper } from '@/infrastructure/mappers/campaign-info.mapper';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
 
+import { BaseRepository } from './base.repository';
+
 @injectable()
-export class CampaignInfoRepository {
+export class CampaignInfoRepository extends BaseRepository<
+  CampaignInfo,
+  CampaignInfoModelAttributes
+> {
   constructor(
-    @inject(TOKENS.ORMAdapterToken) private readonly ormAdapter: IORMAdapter,
-    @inject(LoggerService) private readonly logger: LoggerService
-  ) {}
-
-  /**
-   * Find campaign info by campaign ID
-   */
-  async findByCampaignId(
-    campaignId: string
-  ): Promise<Result<CampaignInfoModelAttributes | null, Error>> {
-    try {
-      this.logger.debug('Finding campaign info by campaign ID', { campaignId });
-
-      const queryBuilder =
-        this.ormAdapter.createQueryBuilder<CampaignInfoModelAttributes>(
-          'CampaignInfo'
-        );
-      const models = await queryBuilder.where({ campaignId }).execute();
-
-      if (models.length === 0 || !models[0]) {
-        return Ok(null);
-      }
-
-      return Ok(models[0]);
-    } catch (error) {
-      this.logger.error(
-        'Error finding campaign info by campaign ID',
-        error as Error
-      );
-      return Err(
-        new Error(`Failed to find campaign info: ${(error as Error).message}`)
-      );
-    }
+    @inject(TOKENS.ORMAdapterToken)
+    ormAdapter: IORMAdapter,
+    @inject(CampaignInfoMapper)
+    private readonly mapper: CampaignInfoMapper,
+    @inject(LoggerService) logger: LoggerService,
+    @inject(EventBus) eventBus: EventBus
+  ) {
+    super('CampaignInfo', ormAdapter, logger, eventBus);
   }
 
-  /**
-   * Find campaign info by ID
-   */
-  async findById(
-    campaignInfoId: string
-  ): Promise<Result<CampaignInfoModelAttributes | null, Error>> {
-    try {
-      this.logger.debug('Finding campaign info by ID', { campaignInfoId });
-
-      const model = await this.ormAdapter.findByPk<CampaignInfoModelAttributes>(
-        'CampaignInfo',
-        campaignInfoId
-      );
-
-      if (!model) {
-        return Ok(null);
-      }
-
-      return Ok(model);
-    } catch (error) {
-      this.logger.error('Error finding campaign info by ID', error as Error);
-      return Err(
-        new Error(`Failed to find campaign info: ${(error as Error).message}`)
-      );
-    }
+  protected toDomain(model: CampaignInfoModelAttributes): CampaignInfo {
+    return this.mapper.toDomain(model);
   }
 
-  /**
-   * Create new campaign info
-   */
-  async createCampaignInfo(
-    data: Omit<
-      CampaignInfoModelAttributes,
-      'createdAt' | 'updatedAt' | 'deletedAt'
-    >
-  ): Promise<Result<CampaignInfoModelAttributes, Error>> {
-    try {
-      this.logger.info('Creating campaign info', {
-        campaignId: data.campaignId,
-      });
-
-      const now = new Date();
-      const campaignInfo: CampaignInfoModelAttributes = {
-        ...data,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      await this.ormAdapter.create('CampaignInfo', campaignInfo);
-
-      this.logger.info('Campaign info created successfully', {
-        campaignInfoId: data.campaignInfoId,
-        campaignId: data.campaignId,
-      });
-
-      return Ok(campaignInfo);
-    } catch (error) {
-      this.logger.error('Error creating campaign info', error as Error);
-      return Err(
-        new Error(`Failed to create campaign info: ${(error as Error).message}`)
-      );
-    }
+  protected toPersistence(domain: CampaignInfo): CampaignInfoModelAttributes {
+    return this.mapper.toPersistence(domain);
   }
 
-  /**
-   * Update campaign info
-   */
-  async updateCampaignInfo(
-    campaignInfoId: string,
-    updates: Partial<
-      Omit<
-        CampaignInfoModelAttributes,
-        'campaignInfoId' | 'createdAt' | 'updatedAt' | 'deletedAt'
-      >
-    >
-  ): Promise<Result<CampaignInfoModelAttributes, Error>> {
-    try {
-      this.logger.info('Updating campaign info', { campaignInfoId });
+  protected getEntityName(): string {
+    return 'CampaignInfo';
+  }
 
-      const updateData = {
-        ...updates,
-        updatedAt: new Date(),
-      };
+  override async findOne(
+    criteria: any
+  ): Promise<Result<CampaignInfo | null, Error>> {
+    return super.findOne(criteria);
+  }
 
-      await this.ormAdapter.update('CampaignInfo', updateData, {
-        campaignInfoId,
-      });
+  override async update(
+    id: string,
+    updates: Partial<CampaignInfo>
+  ): Promise<Result<CampaignInfo, Error>> {
+    return super.update(id, updates);
+  }
 
-      // Fetch the updated record
-      const updatedResult = await this.findById(campaignInfoId);
-      if (updatedResult.isErr()) {
-        return Err(updatedResult.unwrapErr());
-      }
-
-      const updated = updatedResult.unwrap();
-      if (!updated) {
-        return Err(new Error('Campaign info not found after update'));
-      }
-
-      this.logger.info('Campaign info updated successfully', {
-        campaignInfoId,
-      });
-      return Ok(updated);
-    } catch (error) {
-      this.logger.error('Error updating campaign info', error as Error);
-      return Err(
-        new Error(`Failed to update campaign info: ${(error as Error).message}`)
-      );
-    }
+  override async save(
+    entity: CampaignInfo
+  ): Promise<Result<CampaignInfo, Error>> {
+    return super.save(entity);
   }
 }

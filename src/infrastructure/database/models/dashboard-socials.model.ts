@@ -1,5 +1,7 @@
 import { DataTypes } from '@/infrastructure/persistence/orm/base-orm-model';
 
+import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
+
 export interface DashboardSocialsModelAttributes {
   id: string;
   campaignId: string;
@@ -65,6 +67,12 @@ export const DashboardSocialsSchema = {
       allowNull: true,
     },
 
+    status: {
+      type: DataTypes.ENUM(...Object.values(ApprovalStatus)),
+      allowNull: false,
+      defaultValue: ApprovalStatus.DRAFT,
+    },
+
     // Standard timestamps
     createdAt: {
       type: DataTypes.DATE,
@@ -97,21 +105,6 @@ export const DashboardSocialsSchema = {
         foreignKey: 'campaignId',
         targetKey: 'campaignId',
         as: 'campaign',
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-      },
-    },
-    // One-to-one relationship with dashboard approval
-    DashboardApproval: {
-      type: 'hasOne',
-      target: 'DashboardApprovals',
-      options: {
-        foreignKey: 'entityId',
-        sourceKey: 'id',
-        as: 'approval',
-        scope: {
-          entityType: 'dashboard-socials',
-        },
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
       },

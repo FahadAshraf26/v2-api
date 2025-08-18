@@ -1,7 +1,5 @@
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
-import { DashboardApprovalProps } from '@/types/approval';
-
 export interface DashboardSocialsModelAttributes {
   id: string;
   campaignId: string;
@@ -11,6 +9,7 @@ export interface DashboardSocialsModelAttributes {
   facebook?: string | null;
   tiktok?: string | null;
   yelp?: string | null;
+  status: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
@@ -40,7 +39,7 @@ export interface DashboardSocialsProps {
  */
 export interface DashboardSocialsWithApproval {
   socials: DashboardSocialsModelAttributes;
-  approval?: DashboardApprovalProps;
+  approval?: any;
 }
 
 export interface CreateDashboardSocialsDto {
@@ -54,6 +53,7 @@ export interface CreateDashboardSocialsDto {
 }
 
 export interface UpdateDashboardSocialsDto {
+  campaignId: string;
   linkedIn?: string;
   twitter?: string;
   instagram?: string;
@@ -138,6 +138,7 @@ export const createDashboardSocialsSchema = {
 export const updateDashboardSocialsSchema = {
   type: 'object',
   properties: {
+    campaignId: { type: 'string', format: 'uuid' },
     linkedIn: { type: 'string', minLength: 1 },
     twitter: { type: 'string', minLength: 1 },
     instagram: { type: 'string', minLength: 1 },

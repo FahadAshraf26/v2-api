@@ -14,19 +14,17 @@ export class DashboardSocials extends AggregateRoot<DashboardSocialsProps> {
 
   /** Factory method for creating new instance */
   static create(
-    props: Omit<DashboardSocialsProps, 'createdAt' | 'updatedAt' | 'status'>
+    props: Omit<
+      DashboardSocialsProps,
+      'id' | 'status' | 'createdAt' | 'updatedAt'
+    >
   ): Result<DashboardSocials, Error> {
-    const now = new Date();
-
-    if (!props.campaignId) {
-      return Err(new Error('Campaign ID is required'));
-    }
-
     const dashboardSocials = new DashboardSocials({
       ...props,
-      status: ApprovalStatus.PENDING,
-      createdAt: now,
-      updatedAt: now,
+      id: randomUUID(),
+      status: ApprovalStatus.DRAFT,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     return Ok(dashboardSocials);
@@ -110,6 +108,7 @@ export class DashboardSocials extends AggregateRoot<DashboardSocialsProps> {
     facebook?: string;
     tiktok?: string;
     yelp?: string;
+    status?: ApprovalStatus;
   }): Result<void, Error> {
     if (this.props.status === ApprovalStatus.APPROVED) {
       return Err(new Error('Cannot update approved dashboard socials'));

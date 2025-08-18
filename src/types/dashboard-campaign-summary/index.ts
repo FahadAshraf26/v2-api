@@ -1,7 +1,5 @@
 import { ApprovalStatus } from '@/shared/enums/dashboard-campaign-info.enums';
 
-import { DashboardApprovalProps } from '@/types/approval';
-
 /**
  * Dashboard Campaign Summary model attributes (persistence layer - business data only)
  */
@@ -10,6 +8,7 @@ export interface DashboardCampaignSummaryModelAttributes {
   campaignId: string;
   summary?: string | null;
   tagLine?: string | null;
+  status: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,16 +19,11 @@ export interface DashboardCampaignSummaryModelAttributes {
 export interface DashboardCampaignSummaryProps {
   id: string;
   campaignId: string;
-  summary?: string;
-  tagLine?: string;
+  summary?: string | null;
+  tagLine?: string | null;
   status: ApprovalStatus;
   createdAt: Date;
   updatedAt: Date;
-  submittedAt?: Date;
-  reviewedAt?: Date;
-  submittedBy?: string;
-  reviewedBy?: string;
-  comment?: string;
 }
 
 /**
@@ -37,7 +31,7 @@ export interface DashboardCampaignSummaryProps {
  */
 export interface DashboardCampaignSummaryWithApproval {
   summary: DashboardCampaignSummaryModelAttributes;
-  approval?: DashboardApprovalProps;
+  approval?: any;
 }
 
 /**
@@ -50,6 +44,7 @@ export interface CreateDashboardCampaignSummaryDto {
 }
 
 export interface UpdateDashboardCampaignSummaryDto {
+  campaignId: string;
   summary?: string;
   tagLine?: string;
 }

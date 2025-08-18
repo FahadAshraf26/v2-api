@@ -1,0 +1,32 @@
+export interface IssuerProps {
+  issuerId: string;
+  issuerName: string;
+  physicalAddress: string;
+  website?: string | null;
+  businessType: string;
+  legalEntityType: string;
+  description?: string | null;
+  facebook?: string | null;
+  linkedIn?: string | null;
+  twitter?: string | null;
+  instagram?: string | null;
+  pinterest?: string | null;
+  reddit?: string | null;
+  tiktok?: string | null;
+  yelp?: string | null;
+  email: string;
+  EIN?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  phoneNumber?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
+  previousName?: string | null;
+  ncIssuerId?: string | null;
+  country?: string | null;
+  naicId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}

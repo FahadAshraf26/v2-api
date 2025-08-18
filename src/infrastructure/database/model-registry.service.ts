@@ -1,22 +1,25 @@
 import { inject, injectable } from 'tsyringe';
 import { container } from 'tsyringe';
 
-import { TOKENS } from '@/config/dependency-injection';
+import { TOKENS } from '@/config/tokens';
 
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
 
+import { ApprovalHistorySchema } from './models/approval-history.model';
 import { CampaignInfoSchema } from './models/campaign-info.model';
 import { CampaignTagSchema } from './models/campaign-tag.model';
 import { CampaignSchema } from './models/campaign.model';
-import { DashboardApprovalsSchema } from './models/dashboard-approvals.model';
 // Import all model schemas
 import { DashboardCampaignInfoSchema } from './models/dashboard-campaign-info.model';
 import { DashboardCampaignSummarySchema } from './models/dashboard-campaign-summary.model';
 import { DashboardSocialsSchema } from './models/dashboard-socials.model';
+import { InvestorSchema } from './models/investor.model';
+import { OwnerSchema } from './models/owner.model';
 import { RoughBudgetSchema } from './models/rough-budget.model';
 import { TagCategoriesSchema } from './models/tag-categories';
 import { TagSchema } from './models/tag.model';
+import { UserSchema } from './models/user.model';
 
 @injectable()
 export class ModelRegistryService {
@@ -49,7 +52,10 @@ export class ModelRegistryService {
         DashboardCampaignInfoSchema,
         DashboardCampaignSummarySchema,
         DashboardSocialsSchema,
-        DashboardApprovalsSchema,
+        ApprovalHistorySchema,
+        UserSchema,
+        InvestorSchema,
+        OwnerSchema,
       ];
 
       for (const schema of schemas) {
@@ -100,7 +106,10 @@ export class ModelRegistryService {
       'DashboardCampaignInfo',
       'DashboardCampaignSummary',
       'DashboardSocials',
-      'DashboardApprovals',
+      'ApprovalHistory',
+      'User',
+      'Investor',
+      'Owner',
     ];
   }
 }

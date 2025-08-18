@@ -1,94 +1,17 @@
+import { randomUUID } from 'crypto';
 import { injectable } from 'tsyringe';
+
 import {
   Campaign,
   CampaignProps,
 } from '@/domain/campaign/entity/campaign.entity';
+
 import { CampaignModelAttributes } from '@/infrastructure/database/models/campaign.model';
-import { randomUUID } from 'crypto';
 
 @injectable()
 export class CampaignMapper {
-  toDomain(model: CampaignModelAttributes): Campaign {
-    const props: CampaignProps = {
-      id: model.campaignId, // Using campaignId as the domain id
-      campaignId: model.campaignId,
-      campaignName: model.campaignName,
-      campaignTargetAmount: model.campaignTargetAmount,
-      campaignMinimumAmount: model.campaignMinimumAmount,
-      investmentType: model.investmentType,
-      slug: model.slug,
-      isChargeFee: model.isChargeFee,
-      isChargeStripe: model.isChargeStripe,
-      isCampaignAddress: model.isCampaignAddress,
-      isShowOnExplorePage: model.isShowOnExplorePage,
-      createdAt: model.createdAt,
-      updatedAt: model.updatedAt,
-    };
-
-    // Conditionally add optional properties
-    if (model.campaignStartDate !== undefined)
-      props.campaignStartDate = model.campaignStartDate;
-    if (model.campaignDuration !== undefined)
-      props.campaignDuration = model.campaignDuration;
-    if (model.campaignExpirationDate !== undefined)
-      props.campaignExpirationDate = model.campaignExpirationDate;
-    if (model.campaignStage !== undefined)
-      props.campaignStage = model.campaignStage;
-    if (model.earningProcess !== undefined)
-      props.earningProcess = model.earningProcess;
-    if (model.overSubscriptionAccepted !== undefined)
-      props.overSubscriptionAccepted = model.overSubscriptionAccepted;
-    if (model.typeOfSecurityOffered !== undefined)
-      props.typeOfSecurityOffered = model.typeOfSecurityOffered;
-    if (model.useOfProceeds !== undefined)
-      props.useOfProceeds = model.useOfProceeds;
-    if (model.salesLead !== undefined) props.salesLead = model.salesLead;
-    if (model.summary !== undefined) props.summary = model.summary;
-    if (model.demoLink !== undefined) props.demoLink = model.demoLink;
-    if (model.isLocked !== undefined) props.isLocked = model.isLocked;
-    if (model.financialProjectionsDescription !== undefined)
-      props.financialProjectionsDescription =
-        model.financialProjectionsDescription;
-    if (model.howHoneycombIsCompensated !== undefined)
-      props.howHoneycombIsCompensated = model.howHoneycombIsCompensated;
-    if (model.campaignDocumentUrl !== undefined)
-      props.campaignDocumentUrl = model.campaignDocumentUrl;
-    if (model.ncOfferingId !== undefined)
-      props.ncOfferingId = model.ncOfferingId;
-    if (model.repaymentSchedule !== undefined)
-      props.repaymentSchedule = model.repaymentSchedule;
-    if (model.collateral !== undefined) props.collateral = model.collateral;
-    if (model.annualInterestRate !== undefined)
-      props.annualInterestRate = model.annualInterestRate;
-    if (model.maturityDate !== undefined)
-      props.maturityDate = model.maturityDate;
-    if (model.repaymentStartDate !== undefined)
-      props.repaymentStartDate = model.repaymentStartDate;
-    if (model.loanDuration !== undefined)
-      props.loanDuration = model.loanDuration;
-    if (model.interestOnlyLoanDuration !== undefined)
-      props.interestOnlyLoanDuration = model.interestOnlyLoanDuration;
-    if (model.campaignEndTime !== undefined)
-      props.campaignEndTime = model.campaignEndTime;
-    if (model.campaignTimezone !== undefined)
-      props.campaignTimezone = model.campaignTimezone;
-    if (model.blanketLien !== undefined) props.blanketLien = model.blanketLien;
-    if (model.equipmentLien !== undefined)
-      props.equipmentLien = model.equipmentLien;
-    if (model.isPersonalGuarantyFilled !== undefined)
-      props.isPersonalGuarantyFilled = model.isPersonalGuarantyFilled;
-    if (model.personalGuaranty !== undefined)
-      props.personalGuaranty = model.personalGuaranty;
-    if (model.shareValue !== undefined) props.shareValue = model.shareValue;
-    if (model.escrowType !== undefined) props.escrowType = model.escrowType;
-    if (model.competitorOffering !== undefined)
-      props.competitorOffering = model.competitorOffering;
-    if (model.investmentConfiguration !== undefined)
-      props.investmentConfiguration = model.investmentConfiguration;
-    if (model.dividendRate !== undefined)
-      props.dividendRate = model.dividendRate;
-    if (model.deletedAt !== undefined) props.deletedAt = model.deletedAt;
-
+  toDomain(model: any): Campaign {
+    const props: CampaignProps = model.dataValues ? model.dataValues : model;
     return Campaign.fromPersistence(props);
   }
 

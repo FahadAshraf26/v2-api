@@ -97,10 +97,10 @@ export interface PaginatedResult<T> {
   items: T[];
   total: number;
   page: number;
-  pageSize: number;
+  perPage: number;
   totalPages: number;
-  hasNext?: boolean;
-  hasPrevious?: boolean;
+  hasNext: boolean;
+  hasPrevious: boolean;
 }
 
 /**

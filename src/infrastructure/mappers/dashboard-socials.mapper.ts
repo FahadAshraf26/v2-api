@@ -2,6 +2,8 @@ import { injectable } from 'tsyringe';
 
 import { DashboardSocials } from '@/domain/dashboard-socials/entity/dashboard-socials.entity';
 
+import { IssuerModelAttributes } from '@/infrastructure/database/models/issuer.model';
+
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
 import {
@@ -15,27 +17,17 @@ export class DashboardSocialsMapper {
   /**
    * Convert from persistence with approval to domain entity
    */
-  toDomain(data: DashboardSocialsWithApproval): DashboardSocials {
+  toDomain(model: DashboardSocialsModelAttributes): DashboardSocials {
     const props: DashboardSocialsProps = {
-      id: data.socials.id,
-      campaignId: data.socials.campaignId,
-      linkedIn: data.socials.linkedIn || undefined,
-      twitter: data.socials.twitter || undefined,
-      instagram: data.socials.instagram || undefined,
-      facebook: data.socials.facebook || undefined,
-      tiktok: data.socials.tiktok || undefined,
-      yelp: data.socials.yelp || undefined,
-      status:
-        (data.approval?.status as ApprovalStatus) || ApprovalStatus.PENDING,
-      createdAt: data.socials.createdAt,
-      updatedAt: data.socials.updatedAt,
-      submittedAt: data.approval?.submittedAt,
-      reviewedAt: data.approval?.reviewedAt,
-      submittedBy: data.approval?.submittedBy,
-      reviewedBy: data.approval?.reviewedBy,
-      comment: data.approval?.comment,
+      ...model,
+      status: model.status as ApprovalStatus,
+      linkedIn: model.linkedIn || undefined,
+      twitter: model.twitter || undefined,
+      instagram: model.instagram || undefined,
+      facebook: model.facebook || undefined,
+      tiktok: model.tiktok || undefined,
+      yelp: model.yelp || undefined,
     };
-
     return DashboardSocials.fromPersistence(props);
   }
 
@@ -64,19 +56,15 @@ export class DashboardSocialsMapper {
    * Convert from domain entity to persistence
    */
   toPersistence(domain: DashboardSocials): DashboardSocialsModelAttributes {
-    const domainObject = domain.toObject();
-
+    const props = domain.toObject();
     return {
-      id: domainObject.id,
-      campaignId: domainObject.campaignId,
-      linkedIn: domainObject.linkedIn || null,
-      twitter: domainObject.twitter || null,
-      instagram: domainObject.instagram || null,
-      facebook: domainObject.facebook || null,
-      tiktok: domainObject.tiktok || null,
-      yelp: domainObject.yelp || null,
-      createdAt: domainObject.createdAt,
-      updatedAt: domainObject.updatedAt,
+      ...props,
+      linkedIn: props.linkedIn || null,
+      twitter: props.twitter || null,
+      instagram: props.instagram || null,
+      facebook: props.facebook || null,
+      tiktok: props.tiktok || null,
+      yelp: props.yelp || null,
     };
   }
 
@@ -133,6 +121,57 @@ export class DashboardSocialsMapper {
       facebook: data.facebook,
       tiktok: data.tiktok,
       yelp: data.yelp,
+    };
+  }
+
+  /**
+   * Convert from domain entity to persistence for business data only
+   */
+  toBusinessPersistence(
+    domain: DashboardSocials
+  ): DashboardSocialsModelAttributes {
+    return this.toPersistence(domain);
+  }
+
+  /**
+   * Convert from domain entity to persistence for business data only
+   */
+  toDomainFromBusinessData(
+    model: DashboardSocialsModelAttributes
+  ): DashboardSocials {
+    return this.toDomainFromModel(model);
+  }
+
+  /**
+   * Convert search criteria from domain to persistence for business data only
+   */
+  toBusinessPersistenceCriteria(criteria: any): Record<string, any> {
+    return this.toPersistenceCriteria(criteria);
+  }
+
+  /**
+   * Convert update data from domain to persistence for business data only
+   */
+  toBusinessPersistenceUpdate(
+    domain: DashboardSocials
+  ): Partial<DashboardSocialsModelAttributes> {
+    return this.toPersistenceUpdate(domain);
+  }
+
+  toIssuerPersistence(
+    domain: DashboardSocials
+  ): Partial<IssuerModelAttributes> {
+    const { id, createdAt, updatedAt, status, campaignId, ...rest } =
+      domain.toObject();
+    return {
+      ...rest,
+      issuerId: campaignId,
+      linkedIn: rest.linkedIn || null,
+      twitter: rest.twitter || null,
+      instagram: rest.instagram || null,
+      facebook: rest.facebook || null,
+      tiktok: rest.tiktok || null,
+      yelp: rest.yelp || null,
     };
   }
 }

@@ -4,10 +4,9 @@ import Fastify, { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 
 import { config } from '@/config/app';
-import {
-  setupDependencyInjection,
-  TOKENS,
-} from '@/config/dependency-injection';
+import { initializeDependencyInjection } from '@/config/dependency-injection';
+import { registerEventHandlers } from '@/config/event-handler-registrar';
+import { TOKENS } from '@/config/tokens';
 
 import { CacheService } from '@/infrastructure/cache/cache.service';
 import { DatabaseService } from '@/infrastructure/database/database.service';
@@ -287,22 +286,45 @@ async function bootstrap(): Promise<void> {
   console.log(`🔧 Node Version: ${process.version}`);
   console.log('----------------------------------------');
 
-  await setupDependencyInjection();
-
-  const logger = container.resolve(LoggerService);
-  logger.info('🚀 Starting Honeycomb API V2');
-  logger.info(`Environment: ${config.NODE_ENV}`);
-  logger.info(`Node Version: ${process.version}`);
-  logger.info(`Process ID: ${process.pid}`);
+  const logger = new LoggerService();
+  const databaseService = new DatabaseService(logger);
 
   try {
-    const services = await initializeServices(logger);
+    // 1. Initialize Dependency Injection
+    await initializeDependencyInjection(databaseService);
 
-    const app = await createApp(logger);
+    // 2. Resolve services from the container
+    const appLogger = container.resolve(LoggerService);
+    const dbService = container.resolve<DatabaseService>(
+      TOKENS.DatabaseServiceToken
+    );
+    const modelRegistry = container.resolve<ModelRegistryService>(
+      TOKENS.ModelRegistryServiceToken
+    );
 
-    setupGracefulShutdown(app, services, logger);
+    // 3. Connect to the database and register models
+    await dbService.connect();
+    await modelRegistry.registerAllModels();
+    await dbService.sync();
 
-    logger.info('🌐 Starting HTTP server...');
+    // 4. Register event handlers
+    registerEventHandlers();
+
+    appLogger.info('🚀 Starting Honeycomb API V2');
+    appLogger.info(`Environment: ${config.NODE_ENV}`);
+    appLogger.info(`Node Version: ${process.version}`);
+    appLogger.info(`Process ID: ${process.pid}`);
+
+    const services = {
+      databaseService: dbService,
+      cacheService: null, // Simplified for this fix
+    };
+
+    const app = await createApp(appLogger);
+
+    setupGracefulShutdown(app, services, appLogger);
+
+    appLogger.info('🌐 Starting HTTP server...');
     await app.listen({
       port: config.PORT,
       host: config.HOST,

@@ -1,15 +1,19 @@
-import { injectable, inject } from 'tsyringe';
-import { Sequelize, Model, ModelStatic } from 'sequelize';
+import { Model, ModelStatic, Sequelize } from 'sequelize';
+import { QueryTypes } from 'sequelize';
+import { inject, injectable } from 'tsyringe';
+
+import { TOKENS } from '@/config/tokens';
+
 import { DatabaseService } from '@/infrastructure/database/database.service';
+import { IQueryBuilder } from '@/infrastructure/persistence/query-builder/query-builder.interface';
+
+import { BaseORMModel } from '../../base-orm-model';
 import {
+  AssociationDefinition,
   IORMAdapter,
   ModelSchema,
-  AssociationDefinition,
 } from '../../orm-adapter.interface';
-import { IQueryBuilder } from '@/infrastructure/persistence/query-builder/query-builder.interface';
 import { SequelizeQueryBuilderImpl } from './sequelize-query-builder.impl';
-import { BaseORMModel } from '../../base-orm-model';
-import { TOKENS } from '@/config/dependency-injection';
 
 @injectable()
 export class SequelizeAdapter implements IORMAdapter {
@@ -91,6 +95,19 @@ export class SequelizeAdapter implements IORMAdapter {
   async transaction<T>(callback: (transaction: any) => Promise<T>): Promise<T> {
     const sequelize = this.getSequelizeInstance();
     return await sequelize.transaction(callback);
+  }
+
+  async rawQuery(query: string, replacements?: unknown[]): Promise<any[]> {
+    if (!this.sequelize) {
+      throw new Error('Sequelize instance is not available.');
+    }
+    const options: any = {
+      type: QueryTypes.SELECT,
+    };
+    if (replacements) {
+      options.replacements = replacements;
+    }
+    return this.sequelize.query(query, options);
   }
 
   getModel(modelName: string): ModelStatic<Model> {

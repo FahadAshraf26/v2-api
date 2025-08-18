@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Err, Ok, Result } from 'oxide.ts';
 
 import { AggregateRoot } from '@/domain/core/aggregate-root';
@@ -18,25 +19,21 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
   static create(
     props: Omit<
       DashboardCampaignInfoProps,
-      'createdAt' | 'updatedAt' | 'status'
+      'id' | 'status' | 'createdAt' | 'updatedAt'
     >
   ): Result<DashboardCampaignInfo, Error> {
-    const now = new Date();
-
-    if (!props.campaignId) {
-      return Err(new Error('Campaign ID is required'));
-    }
+    const milestones = Array.isArray(props.milestones)
+      ? JSON.stringify(props.milestones)
+      : (props.milestones ?? null);
 
     const dashboardInfo = new DashboardCampaignInfo({
       ...props,
-      status: ApprovalStatus.PENDING,
-      createdAt: now,
-      updatedAt: now,
+      id: randomUUID(),
+      milestones,
+      status: ApprovalStatus.DRAFT,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
-
-    dashboardInfo.addDomainEvent(
-      new DashboardCampaignInfoCreatedEvent(props.id, props.campaignId)
-    );
 
     return Ok(dashboardInfo);
   }
@@ -59,20 +56,20 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
     return this.props.campaignId;
   }
 
-  get milestones(): string | undefined {
-    return this.props.milestones;
+  get milestones(): string | null {
+    return this.props.milestones || null;
   }
 
-  get investorPitch(): string | undefined {
-    return this.props.investorPitch;
+  get investorPitch(): string | null {
+    return this.props.investorPitch || null;
   }
 
-  get isShowPitch(): boolean | undefined {
-    return this.props.isShowPitch;
+  get isShowPitch(): boolean | null {
+    return this.props.isShowPitch || null;
   }
 
-  get investorPitchTitle(): string | undefined {
-    return this.props.investorPitchTitle;
+  get investorPitchTitle(): string | null {
+    return this.props.investorPitchTitle || null;
   }
 
   get status(): ApprovalStatus {
@@ -87,26 +84,6 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
     return this.props.updatedAt;
   }
 
-  get submittedAt(): Date | undefined {
-    return this.props.submittedAt;
-  }
-
-  get reviewedAt(): Date | undefined {
-    return this.props.reviewedAt;
-  }
-
-  get submittedBy(): string | undefined {
-    return this.props.submittedBy;
-  }
-
-  get reviewedBy(): string | undefined {
-    return this.props.reviewedBy;
-  }
-
-  get comment(): string | undefined {
-    return this.props.comment;
-  }
-
   /**
    * Update dashboard campaign info
    */
@@ -115,6 +92,7 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
     investorPitch?: string;
     isShowPitch?: boolean;
     investorPitchTitle?: string;
+    status?: ApprovalStatus;
   }): Result<void, Error> {
     if (this.props.status === ApprovalStatus.APPROVED) {
       return Err(new Error('Cannot update approved dashboard campaign info'));
@@ -133,20 +111,12 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
     if (updates.investorPitchTitle !== undefined) {
       this.props.investorPitchTitle = updates.investorPitchTitle;
     }
+    if (updates.status !== undefined) {
+      this.props.status = updates.status;
+    }
 
     this.props.updatedAt = new Date();
     return Ok(undefined);
-  }
-
-  /**
-   * Check if entity can be edited by user
-   */
-  canEdit(userId: string): boolean {
-    // Can edit if pending and user is the submitter
-    return (
-      this.props.status === ApprovalStatus.PENDING &&
-      this.props.submittedBy === userId
-    );
   }
 
   /**
@@ -180,8 +150,6 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
       return Err(new Error('Entity needs content before submission'));
     }
 
-    this.props.submittedBy = userId;
-    this.props.submittedAt = new Date();
     this.props.status = ApprovalStatus.PENDING;
     this.props.updatedAt = new Date();
 
@@ -195,13 +163,7 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
     if (this.props.status === ApprovalStatus.APPROVED) {
       return Err(new Error('Entity is already approved'));
     }
-
     this.props.status = ApprovalStatus.APPROVED;
-    this.props.reviewedBy = adminId;
-    this.props.reviewedAt = new Date();
-    if (comment) {
-      this.props.comment = comment;
-    }
     this.props.updatedAt = new Date();
 
     this.addDomainEvent(
@@ -224,9 +186,6 @@ export class DashboardCampaignInfo extends AggregateRoot<DashboardCampaignInfoPr
     }
 
     this.props.status = ApprovalStatus.REJECTED;
-    this.props.reviewedBy = adminId;
-    this.props.reviewedAt = new Date();
-    this.props.comment = comment;
     this.props.updatedAt = new Date();
 
     this.addDomainEvent(
