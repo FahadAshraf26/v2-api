@@ -23,14 +23,10 @@ export class DashboardReviewController extends BaseController {
     request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> {
-    const result = await this.dashboardReviewService.reviewSubmission(
-      request.body as ReviewSubmissionDto
+    await this.execute(request, reply, () =>
+      this.dashboardReviewService.reviewSubmission(
+        request.body as ReviewSubmissionDto
+      )
     );
-
-    if (result.isErr()) {
-      return reply.status(400).send({ error: result.unwrapErr().message });
-    }
-
-    return this.ok(reply, { success: true });
   }
 }

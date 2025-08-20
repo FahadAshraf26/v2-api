@@ -41,4 +41,19 @@ export class IssuerMapper {
       country: props.country || null,
     };
   }
+
+  toPersistenceCriteria<T extends Record<string, unknown>>(
+    criteria: T
+  ): Partial<T> {
+    const persistenceCriteria: Partial<T> = {};
+    for (const key in criteria) {
+      if (key === 'id') {
+        (persistenceCriteria as Record<string, unknown>)['issuerId'] =
+          criteria[key];
+      } else {
+        persistenceCriteria[key] = criteria[key];
+      }
+    }
+    return persistenceCriteria;
+  }
 }

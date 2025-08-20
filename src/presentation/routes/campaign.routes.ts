@@ -3,14 +3,16 @@ import { container } from 'tsyringe';
 
 import { CampaignController } from '@/presentation/controllers/campaign.controller';
 
-import { authenticateAdmin } from '@/shared/utils/middleware/auth.middleware';
+import { AuthMiddleware } from '@/shared/utils/middleware/auth.middleware';
 
 import { getPendingCampaignsSchema } from '@/types/campaign/get-pending-campaigns.dto';
 
 export default async function campaignRoutes(
-  fastify: FastifyInstance
+  fastify: FastifyInstance,
+  options: { authMiddleware: AuthMiddleware }
 ): Promise<void> {
   const controller = container.resolve(CampaignController);
+  const { authenticateAdmin } = options.authMiddleware;
 
   fastify.get(
     '/pending',

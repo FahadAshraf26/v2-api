@@ -141,4 +141,16 @@ export class DashboardCampaignSummary extends AggregateRoot<DashboardCampaignSum
   toObject(): DashboardCampaignSummaryProps {
     return { ...this.props };
   }
+
+  toJSON() {
+    return {
+      id: this.props.id,
+      campaignId: this.props.campaignId,
+      summary: this.props.summary,
+      tagLine: this.props.tagLine,
+      status: this.props.status,
+      createdAt: this.props.createdAt,
+      updatedAt: this.props.updatedAt,
+    };
+  }
 }

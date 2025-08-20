@@ -1,4 +1,5 @@
 import { Err, Ok, Result } from 'oxide.ts';
+import { Transaction } from 'sequelize';
 import { inject } from 'tsyringe';
 
 import { TOKENS } from '@/config/tokens';
@@ -17,11 +18,11 @@ import type { WhereCondition } from '@/domain/core/repository.interface';
 import { EventBus } from '@/infrastructure/events/event-bus';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
-import type { IQueryBuilder } from '@/infrastructure/persistence/query-builder/query-builder.interface';
+import { IQueryBuilder } from '@/infrastructure/persistence/query-builder/query-builder.interface';
 
 import { ErrorConverter } from '@/shared/utils/error-converter';
 
-export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
+export abstract class BaseRepository<TDomain extends Entity<unknown>, TModel>
   implements IPaginatedRepository<TDomain>
 {
   protected modelName: string;
@@ -48,8 +49,17 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    * Abstract methods that must be implemented by concrete repositories
    */
   protected abstract toDomain(model: TModel): TDomain;
-  protected abstract toPersistence(domain: TDomain): any;
+  protected abstract toPersistence(domain: TDomain): Record<string, unknown>;
   protected abstract getEntityName(): string;
+
+  /**
+   * Handle repository errors
+   */
+  protected handleRepositoryError(error: unknown): Err<Error> {
+    const appError = ErrorConverter.fromDatabaseError(error);
+    this.logger.error('Repository error', appError);
+    return Err(appError);
+  }
 
   /**
    * Create a new query builder instance
@@ -63,24 +73,13 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    */
   async findById(id: string): Promise<Result<TDomain | null, Error>> {
     try {
-      this.logger.debug(`Finding ${this.getEntityName()} by id`, { id });
-
-      const model = await this.ormAdapter.findByPk<TModel>(this.modelName, id);
-
-      if (!model) {
-        this.logger.debug(`${this.getEntityName()} not found`, { id });
-        return Ok(null);
-      }
-
-      const domain = this.toDomain(model);
-      this.logger.debug(`${this.getEntityName()} found`, { id });
-
-      return Ok(domain);
+      this.logger.debug(`Finding ${this.getEntityName()} by ID`, { id });
+      const result = await this.findOne({
+        where: { id } as WhereCondition<TDomain>,
+      });
+      return result;
     } catch (error) {
-      this.logger.error(
-        `Error finding ${this.getEntityName()} by id`,
-        error as Error
-      );
+      this.logger.error(`Error finding ${this.getEntityName()} by ID`, error);
       const appError = ErrorConverter.fromDatabaseError(error);
       return Err(appError);
     }
@@ -204,12 +203,13 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
     criteria: FindManyCriteria<TDomain> & { page: number; pageSize: number }
   ): Promise<Result<PaginatedResult<TDomain>, Error>> {
     try {
-      const { page, pageSize, ...findCriteria } = criteria;
+      const { page, pageSize, ...findManyCriteria } = criteria;
+      const offset = (page - 1) * pageSize;
 
       this.logger.debug(`Finding paginated ${this.getEntityName()}s`, {
         page,
         pageSize,
-        criteria: findCriteria,
+        criteria: findManyCriteria,
       });
 
       // Validate pagination parameters
@@ -223,22 +223,19 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
 
       // Get total count
       const countCriteria: CountCriteria<TDomain> = {};
-      if (findCriteria.where) {
-        countCriteria.where = findCriteria.where;
+      if (findManyCriteria.where) {
+        countCriteria.where = findManyCriteria.where;
       }
       const countResult = await this.count(countCriteria);
       if (countResult.isErr()) {
         return Err(countResult.unwrapErr());
       }
       const total = countResult.unwrap();
-
-      // Calculate pagination
       const totalPages = Math.ceil(total / pageSize);
-      const offset = (page - 1) * pageSize;
 
       // Get paginated items
       const itemsResult = await this.findMany({
-        ...findCriteria,
+        ...findManyCriteria,
         limit: pageSize,
         offset,
       });
@@ -251,7 +248,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         items: itemsResult.unwrap(),
         total,
         page,
-        pageSize,
+        perPage: pageSize,
         totalPages,
         hasNext: page < totalPages,
         hasPrevious: page > 1,
@@ -306,7 +303,9 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
   async exists(id: string): Promise<Result<boolean, Error>> {
     try {
       const queryBuilder = this.createQueryBuilder();
-      const count = await queryBuilder.where({ id } as any).count();
+      const count = await queryBuilder
+        .where({ id } as Record<string, unknown>)
+        .count();
 
       return Ok(count > 0);
     } catch (error) {
@@ -321,7 +320,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    */
   async save(
     entity: TDomain,
-    options?: { transaction?: any }
+    options?: { transaction?: Transaction }
   ): Promise<Result<TDomain, Error>> {
     try {
       this.logger.debug(`Saving new ${this.getEntityName()}`, {
@@ -360,7 +359,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    */
   async saveMany(
     entities: TDomain[],
-    options?: { transaction?: any }
+    options?: { transaction?: Transaction }
   ): Promise<Result<TDomain[], Error>> {
     try {
       this.logger.debug(`Saving ${entities.length} ${this.getEntityName()}s`);
@@ -396,7 +395,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
   async update(
     id: string,
     updates: Partial<TDomain>,
-    options?: { transaction?: any }
+    options?: { transaction?: Transaction }
   ): Promise<Result<TDomain, Error>> {
     try {
       this.logger.debug(`Updating ${this.getEntityName()}`, { id, updates });
@@ -413,12 +412,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
 
       const data = this.mapDomainUpdatesToPersistence(updates);
 
-      const [affectedRows] = await this.ormAdapter.update(
-        this.modelName,
-        data,
-        { id },
-        options
-      );
+      await this.ormAdapter.update(this.modelName, data, { id }, options);
 
       // The findById check at the start of this method confirms the entity exists.
       // If affectedRows is 0, it means the data was the same and no update was needed.
@@ -458,7 +452,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    */
   async delete(
     id: string,
-    options?: { transaction?: any; force?: boolean }
+    options?: { transaction?: Transaction; force?: boolean }
   ): Promise<Result<void, Error>> {
     try {
       this.logger.debug(`Deleting ${this.getEntityName()}`, {
@@ -494,7 +488,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    */
   async deleteMany(
     ids: string[],
-    options?: { transaction?: any; force?: boolean }
+    options?: { transaction?: Transaction; force?: boolean }
   ): Promise<Result<void, Error>> {
     try {
       this.logger.debug(`Deleting ${ids.length} ${this.getEntityName()}s`);
@@ -525,7 +519,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    * Execute transaction
    */
   async transaction<T>(
-    callback: (transaction: any) => Promise<Result<T, Error>>
+    callback: (transaction: Transaction) => Promise<Result<T, Error>>
   ): Promise<Result<T, Error>> {
     try {
       const result = await this.ormAdapter.transaction(async transaction => {
@@ -550,8 +544,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    */
   protected mapDomainCriteriaToPersistence(
     criteria: Partial<TDomain> | WhereCondition<TDomain>
-  ): Record<string, any> {
-    const mapped: Record<string, any> = {};
+  ): Record<string, unknown> {
+    const mapped: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(criteria)) {
       if (value === undefined) {
@@ -560,7 +554,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
 
       // Handle value objects (they usually have a 'value' property)
       if (value && typeof value === 'object' && 'value' in value) {
-        mapped[key] = value.value;
+        mapped[key] = (value as { value: unknown }).value;
       }
       // Handle Date objects
       else if (value instanceof Date) {
@@ -570,7 +564,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
       else if (Array.isArray(value)) {
         mapped[key] = value.map(item =>
           item && typeof item === 'object' && 'value' in item
-            ? item.value
+            ? (item as { value: unknown }).value
             : item
         );
       }
@@ -580,7 +574,9 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
         typeof value === 'object' &&
         value.constructor === Object
       ) {
-        mapped[key] = this.mapDomainCriteriaToPersistence(value as any);
+        mapped[key] = this.mapDomainCriteriaToPersistence(
+          value as WhereCondition<TDomain>
+        );
       }
       // Primitive values
       else {
@@ -597,8 +593,8 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    */
   protected mapDomainUpdatesToPersistence(
     updates: Partial<TDomain>
-  ): Record<string, any> {
-    let mapped: Record<string, any>;
+  ): Record<string, unknown> {
+    let mapped: Record<string, unknown>;
 
     // If a full entity is passed, use the dedicated toPersistence method.
     // Otherwise, map the partial update object.
@@ -641,7 +637,7 @@ export abstract class BaseRepository<TDomain extends Entity<any>, TModel>
    * Validate entity before save/update
    * Override in concrete repositories for custom validation
    */
-  protected async validate(entity: TDomain): Promise<Result<void, Error>> {
+  protected async validate(): Promise<Result<void, Error>> {
     // Default: no validation
     return Ok(undefined);
   }

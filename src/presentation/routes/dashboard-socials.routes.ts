@@ -1,9 +1,9 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 
 import { DashboardSocialsController } from '@/presentation/controllers/dashboard-socials.controller';
 
-import { authenticateUser } from '@/shared/utils/middleware/auth.middleware';
+import { AuthMiddleware } from '@/shared/utils/middleware/auth.middleware';
 
 import {
   createDashboardSocialsSchema,
@@ -13,9 +13,34 @@ import {
 
 export default async function dashboardSocialsRoutes(
   fastify: FastifyInstance,
-  options: FastifyPluginOptions
+  options: { authMiddleware: AuthMiddleware }
 ): Promise<void> {
   const controller = container.resolve(DashboardSocialsController);
+  const { authenticateUser } = options.authMiddleware;
+
+  fastify.get(
+    '/:slug',
+    {
+      preHandler: authenticateUser,
+      schema: {
+        description: 'Get dashboard socials by campaign slug',
+        tags: ['Dashboard Socials'],
+        params: {
+          type: 'object',
+          properties: {
+            slug: { type: 'string' },
+          },
+          required: ['slug'],
+        },
+        response: {
+          200: successResponseSchema,
+          404: errorSchema,
+          500: errorSchema,
+        },
+      },
+    },
+    controller.findByCampaignSlug.bind(controller)
+  );
 
   fastify.post(
     '/',

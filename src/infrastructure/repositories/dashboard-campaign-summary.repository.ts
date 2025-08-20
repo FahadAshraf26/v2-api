@@ -1,4 +1,4 @@
-import { Err, Result } from 'oxide.ts';
+import { Err, Ok, Result } from 'oxide.ts';
 import { inject, injectable } from 'tsyringe';
 
 import { TOKENS } from '@/config/tokens';
@@ -32,6 +32,39 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
     super('DashboardCampaignSummary', ormAdapter, logger, eventBus);
   }
 
+  /**
+   * Find dashboard campaign summary by campaign slug
+   */
+  async findByCampaignSlug(
+    slug: string
+  ): Promise<Result<DashboardCampaignSummary | null, Error>> {
+    try {
+      const result = await this.findOne({
+        include: [
+          {
+            relation: 'campaign',
+            where: { slug },
+            required: true,
+          },
+        ],
+      });
+
+      if (result.isErr()) {
+        return result;
+      }
+
+      const entity = result.unwrap();
+
+      return Ok(
+        entity
+          ? this.toDomain(entity as DashboardCampaignSummaryModelAttributes)
+          : null
+      );
+    } catch (error) {
+      return this.handleRepositoryError(error);
+    }
+  }
+
   protected toDomain(
     model: DashboardCampaignSummaryModelAttributes
   ): DashboardCampaignSummary {
@@ -40,8 +73,11 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
 
   protected toPersistence(
     domain: DashboardCampaignSummary
-  ): DashboardCampaignSummaryModelAttributes {
-    return this.mapper.toPersistence(domain);
+  ): Record<string, unknown> {
+    return this.mapper.toPersistence(domain) as unknown as Record<
+      string,
+      unknown
+    >;
   }
 
   protected getEntityName(): string {
@@ -84,7 +120,7 @@ export class DashboardCampaignSummaryRepository extends BaseRepository<
           if (existing.status === ApprovalStatus.REJECTED) {
             newStatus = ApprovalStatus.PENDING;
           }
-          dashboardSummary.update({ status: newStatus as any });
+          dashboardSummary.update({ status: newStatus as ApprovalStatus });
 
           const updated = await this.update(
             existing.id as string,

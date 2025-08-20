@@ -4,7 +4,10 @@ import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/config/tokens';
 
 import { Campaign } from '@/domain/campaign/entity/campaign.entity';
-import { PaginatedResult } from '@/domain/core/repository.interface';
+import {
+  PaginatedResult,
+  WhereCondition,
+} from '@/domain/core/repository.interface';
 
 import { CampaignModelAttributes } from '@/infrastructure/database/models/campaign.model';
 import { EventBus } from '@/infrastructure/events/event-bus';
@@ -43,19 +46,19 @@ export class CampaignRepository extends BaseRepository<
     return this.mapper.toDomain(model);
   }
 
-  protected override toPersistence(domain: Campaign): any {
+  protected override toPersistence(domain: Campaign): Record<string, unknown> {
     return this.mapper.toPersistence(domain);
   }
 
   protected override mapDomainCriteriaToPersistence(
-    criteria: any
-  ): Record<string, any> {
+    criteria: Partial<Campaign> | WhereCondition<Campaign>
+  ): Record<string, unknown> {
     return this.mapper.toPersistenceCriteria(criteria);
   }
 
   protected override mapDomainUpdatesToPersistence(
     updates: Partial<Campaign>
-  ): Record<string, any> {
+  ): Record<string, unknown> {
     if (updates instanceof Campaign) {
       return this.mapper.toPersistenceUpdate(updates);
     }
@@ -344,10 +347,11 @@ export class CampaignRepository extends BaseRepository<
     dto: GetPendingCampaignsDto
   ): Promise<Result<PaginatedResult<PendingCampaignDto>, Error>> {
     try {
-      const page = dto.page || 1;
-      const perPage = dto.perPage || 10;
+      const page = parseInt(String(dto.page), 10) || 1;
+      const perPage = parseInt(String(dto.perPage), 10) || 10;
       const offset = (page - 1) * perPage;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const replacements: any = {
         status: ApprovalStatus.PENDING,
         limit: perPage,
@@ -357,11 +361,11 @@ export class CampaignRepository extends BaseRepository<
       let whereClause = '';
       if (dto.campaignStage) {
         whereClause += ' AND c.`campaignStage` = :campaignStage';
-        replacements.campaignStage = dto.campaignStage;
+        replacements['campaignStage'] = dto.campaignStage;
       }
       if (dto.searchTerm) {
         whereClause += ' AND c.`campaignName` LIKE :searchTerm';
-        replacements.searchTerm = `%${dto.searchTerm}%`;
+        replacements['searchTerm'] = `%${dto.searchTerm}%`;
       }
 
       const dataQuery = `
@@ -386,6 +390,8 @@ export class CampaignRepository extends BaseRepository<
           WHERE ah.status = :status
         )
         SELECT
+            c.\`campaignId\`,
+            c.\`issuerId\`,
             c.\`campaignName\`,
             c.\`campaignStage\`,
             lah.\`submittedBy\`,

@@ -7,6 +7,7 @@ import { CampaignModelAttributes } from '@/infrastructure/database/models/campai
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
 import {
+  DashboardCampaignSummaryDto,
   DashboardCampaignSummaryModelAttributes,
   DashboardCampaignSummaryProps,
 } from '@/types/dashboard-campaign-summary';
@@ -26,6 +27,19 @@ export class DashboardCampaignSummaryMapper {
       updatedAt: model.updatedAt,
     };
     return DashboardCampaignSummary.fromPersistence(props);
+  }
+
+  toDTO(domain: DashboardCampaignSummary): DashboardCampaignSummaryDto {
+    const props = domain.toObject();
+    return {
+      id: props.id,
+      campaignId: props.campaignId,
+      summary: props.summary ?? null,
+      tagLine: props.tagLine ?? null,
+      status: props.status,
+      createdAt: props.createdAt,
+      updatedAt: props.updatedAt,
+    };
   }
 
   toPersistence(

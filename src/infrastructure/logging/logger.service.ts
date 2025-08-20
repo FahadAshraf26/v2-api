@@ -1,15 +1,14 @@
 import pino, { Logger } from 'pino';
 import { injectable } from 'tsyringe';
-import { config } from '@/config/app';
 
 @injectable()
 export class LoggerService {
   private logger: Logger;
 
-  constructor() {
+  constructor(logLevel: string = 'info', nodeEnv?: string) {
     this.logger = pino({
-      level: config.LOG_LEVEL,
-      ...(config.NODE_ENV === 'development' && {
+      level: logLevel,
+      ...(nodeEnv === 'local' && {
         transport: {
           target: 'pino-pretty',
           options: {
@@ -22,11 +21,11 @@ export class LoggerService {
     });
   }
 
-  info(message: string, meta?: any): void {
+  info(message: string, meta?: Record<string, unknown>): void {
     this.logger.info(meta, message);
   }
 
-  error(message: string, error?: Error | any): void {
+  error(message: string, error?: unknown): void {
     if (error instanceof Error) {
       this.logger.error(
         {
@@ -43,11 +42,11 @@ export class LoggerService {
     }
   }
 
-  warn(message: string, meta?: any): void {
+  warn(message: string, meta?: Record<string, unknown>): void {
     this.logger.warn(meta, message);
   }
 
-  debug(message: string, meta?: any): void {
+  debug(message: string, meta?: Record<string, unknown>): void {
     this.logger.debug(meta, message);
   }
 
@@ -55,7 +54,7 @@ export class LoggerService {
     this.logger.fatal({ err: error }, message);
   }
 
-  child(bindings: Record<string, any>): LoggerService {
+  child(bindings: Record<string, unknown>): LoggerService {
     const childLogger = Object.create(this);
     childLogger.logger = this.logger.child(bindings);
     return childLogger;

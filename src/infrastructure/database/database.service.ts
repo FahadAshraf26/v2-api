@@ -1,26 +1,31 @@
-import { Sequelize } from 'sequelize';
+import { Err, Ok, Result } from 'oxide.ts';
+import { Dialect, Sequelize } from 'sequelize';
 import { inject, injectable } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
-import { config } from '@/config/app';
+
+import { ConfigService } from '@/config/config.service';
+
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 
 @injectable()
 export class DatabaseService {
   private sequelize: Sequelize | null = null;
 
-  constructor(@inject(LoggerService) private readonly logger: LoggerService) {}
+  constructor(
+    @inject(LoggerService) private readonly logger: LoggerService,
+    @inject(ConfigService) private readonly configService: ConfigService
+  ) {}
 
   async connect(): Promise<Result<void, Error>> {
     try {
       // Check for DATABASE_URL first (useful for tests and containerized environments)
-      const databaseUrl = process.env['DATABASE_URL'];
+      const databaseUrl = this.configService.get('DATABASE_URL');
 
       if (databaseUrl) {
         this.logger.info('Using DATABASE_URL for database connection');
         this.sequelize = new Sequelize(databaseUrl, {
           logging:
-            config.NODE_ENV === 'development'
-              ? msg => this.logger.debug('Sequelize', { query: msg })
+            this.configService.get('NODE_ENV') === 'development'
+              ? (msg): void => this.logger.debug('Sequelize', { query: msg })
               : false,
           define: {
             timestamps: true,
@@ -31,21 +36,21 @@ export class DatabaseService {
       } else {
         this.logger.info('Using individual database config variables');
         this.sequelize = new Sequelize({
-          dialect: 'mysql',
-          host: config.DB_HOST,
-          port: config.DB_PORT,
-          database: config.DB_NAME,
-          username: config.DB_USER,
-          password: config.DB_PASSWORD,
+          dialect: (this.configService.get('DB_DIALECT') || 'mysql') as Dialect,
+          host: this.configService.get('DB_HOST') || 'localhost',
+          port: Number(this.configService.get('DB_PORT') || 3306),
+          database: this.configService.get('DB_NAME') || '',
+          username: this.configService.get('DB_USERNAME') || '',
+          password: this.configService.get('DB_PASSWORD') || '',
           pool: {
-            max: config.DB_POOL_MAX,
-            min: config.DB_POOL_MIN,
-            acquire: config.DB_POOL_ACQUIRE,
-            idle: config.DB_POOL_IDLE,
+            max: Number(this.configService.get('DB_POOL_MAX') || 10),
+            min: Number(this.configService.get('DB_POOL_MIN') || 0),
+            acquire: Number(this.configService.get('DB_POOL_ACQUIRE') || 30000),
+            idle: Number(this.configService.get('DB_POOL_IDLE') || 10000),
           },
           logging:
-            config.NODE_ENV === 'development'
-              ? msg => this.logger.debug('Sequelize', { query: msg })
+            this.configService.get('NODE_ENV') === 'development'
+              ? (msg): void => this.logger.debug('Sequelize', { query: msg })
               : false,
           dialectOptions: {
             charset: 'utf8mb4',
@@ -86,12 +91,13 @@ export class DatabaseService {
         return Err(new Error('Database not connected'));
       }
 
-      if (config.NODE_ENV === 'development' || config.NODE_ENV === 'test') {
+      const nodeEnv = this.configService.get('NODE_ENV');
+      if (nodeEnv === 'development' || nodeEnv === 'test') {
         this.logger.info('Syncing database schema...');
 
         try {
           // For test environment, use simpler sync to avoid timeouts
-          if (config.NODE_ENV === 'test') {
+          if (nodeEnv === 'test') {
             await this.sequelize.sync({
               force: false,
               logging: false, // Disable logging in tests
@@ -115,7 +121,7 @@ export class DatabaseService {
           try {
             await this.sequelize.sync({
               force: false,
-              logging: config.NODE_ENV !== 'test', // Disable logging in tests
+              logging: this.configService.get('NODE_ENV') !== 'test', // Disable logging in tests
             });
             this.logger.info(
               'Database synced - tables created (no structural changes)'

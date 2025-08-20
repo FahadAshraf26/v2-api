@@ -7,6 +7,7 @@ import { IssuerModelAttributes } from '@/infrastructure/database/models/issuer.m
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
 import {
+  DashboardSocialsDto,
   DashboardSocialsModelAttributes,
   DashboardSocialsProps,
   DashboardSocialsWithApproval,
@@ -29,6 +30,23 @@ export class DashboardSocialsMapper {
       yelp: model.yelp || undefined,
     };
     return DashboardSocials.fromPersistence(props);
+  }
+
+  toDTO(domain: DashboardSocials): DashboardSocialsDto {
+    const props = domain.toObject();
+    return {
+      id: props.id,
+      campaignId: props.campaignId,
+      linkedIn: props.linkedIn ?? null,
+      twitter: props.twitter ?? null,
+      instagram: props.instagram ?? null,
+      facebook: props.facebook ?? null,
+      tiktok: props.tiktok ?? null,
+      yelp: props.yelp ?? null,
+      status: props.status,
+      createdAt: props.createdAt,
+      updatedAt: props.updatedAt,
+    };
   }
 
   /**

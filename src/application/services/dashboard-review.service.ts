@@ -67,7 +67,7 @@ export class DashboardReviewService {
     entityTypes,
     action,
     comment,
-  }: ReviewSubmissionDto): Promise<Result<void, Error>> {
+  }: ReviewSubmissionDto): Promise<Result<{ success: boolean }, Error>> {
     try {
       this.logger.info('Reviewing dashboard submission', {
         campaignId,
@@ -129,7 +129,7 @@ export class DashboardReviewService {
         }
       }
 
-      return Ok(undefined);
+      return Ok({ success: true });
     } catch (error) {
       this.logger.error('Error reviewing dashboard submission', error as Error);
       return Err(

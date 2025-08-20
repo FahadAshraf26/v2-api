@@ -1,8 +1,9 @@
+/// <reference types="node" />
+import { Block, KnownBlock } from '@slack/web-api';
 import { inject, injectable } from 'tsyringe';
 
 import { TOKENS } from '@/config/tokens';
 
-import { Campaign } from '@/domain/campaign/entity/campaign.entity';
 import { DomainEventHandler } from '@/domain/core/domain-event-handler';
 import { DashboardItemSubmittedForReviewEvent } from '@/domain/submission/events/dashboard-item-submitted-for-review.event';
 
@@ -100,34 +101,36 @@ export class DashboardItemSubmittedForReviewHandler
     campaignName: string,
     userName: string
   ): SlackMessage {
-    const entitiesText = event.entityTypes.join(', ');
     const timestamp = Math.floor(event.timestamp.getTime() / 1000);
 
-    const blocks: any[] = [
+    const blocks: (Block | KnownBlock)[] = [
       {
         type: 'header',
         text: {
           type: 'plain_text',
-          text: '🔔 New Dashboard Submission for Review',
+          text: '🔔 New Offering Submission for Review',
           emoji: true,
         },
       },
       {
         type: 'section',
-        fields: [
-          {
-            type: 'mrkdwn',
-            text: `*Campaign:*\n${campaignName}`,
-          },
-          {
-            type: 'mrkdwn',
-            text: `*Submitted By:*\n${userName}`,
-          },
-          {
-            type: 'mrkdwn',
-            text: `*Entities:*\n${entitiesText}`,
-          },
-        ],
+        text: {
+          type: 'mrkdwn',
+          text: `*${userName}* has submitted the offering *${campaignName}* for review.`,
+        },
+      },
+      {
+        type: 'divider',
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*Entities Submitted:*\n• ${event.entityTypes.join('\n• ')}`,
+        },
+      },
+      {
+        type: 'divider',
       },
       {
         type: 'context',
@@ -161,7 +164,9 @@ export class DashboardItemSubmittedForReviewHandler
 
     return {
       blocks,
-      text: `New dashboard submission for campaign ${campaignName}: ${entitiesText}`,
+      text: `New dashboard submission for campaign ${campaignName}: ${event.entityTypes.join(
+        ', '
+      )}`,
     };
   }
 }

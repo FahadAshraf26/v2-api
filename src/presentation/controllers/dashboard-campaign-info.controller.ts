@@ -22,24 +22,25 @@ export class DashboardCampaignInfoController extends BaseController {
     super(logger);
   }
 
+  async findByCampaignSlug(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    await this.execute(request, reply, () => {
+      const { slug } = request.params as { slug: string };
+      return this.service.findByCampaignSlug(slug);
+    });
+  }
+
   async createOrUpdate(
     request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> {
-    const result = await this.service.createOrUpdate(
-      request.body as
+    await this.execute(request, reply, () => {
+      const dto = request.body as
         | CreateDashboardCampaignInfoDto
-        | UpdateDashboardCampaignInfoDto
-    );
-
-    if (result.isErr()) {
-      this.logger.error('Error creating or updating dashboard campaign info', {
-        error: result.unwrapErr(),
-      });
-      reply.status(400).send({ error: result.unwrapErr().message });
-      return;
-    }
-
-    this.ok(reply, result.unwrap());
+        | UpdateDashboardCampaignInfoDto;
+      return this.service.createOrUpdate(dto);
+    });
   }
 }

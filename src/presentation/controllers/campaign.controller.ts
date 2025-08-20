@@ -22,16 +22,10 @@ export class CampaignController extends BaseController {
     request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> {
-    const result = await this.campaignService.getPendingCampaigns(
-      request.query as GetPendingCampaignsDto
+    await this.execute(request, reply, () =>
+      this.campaignService.getPendingCampaigns(
+        request.query as GetPendingCampaignsDto
+      )
     );
-
-    if (result.isErr()) {
-      this.logger.error('Error fetching pending campaigns', result.unwrapErr());
-      reply.status(500).send({ error: 'Failed to fetch pending campaigns' });
-      return;
-    }
-
-    this.ok(reply, result);
   }
 }

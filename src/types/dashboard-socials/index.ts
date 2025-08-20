@@ -34,6 +34,20 @@ export interface DashboardSocialsProps {
   comment?: string | undefined;
 }
 
+export interface DashboardSocialsDto {
+  id: string;
+  campaignId: string;
+  linkedIn?: string | null;
+  twitter?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  tiktok?: string | null;
+  yelp?: string | null;
+  status: ApprovalStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /**
  * Combined entity with approval data (from repository join)
  */

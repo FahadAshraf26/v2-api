@@ -26,6 +26,16 @@ export interface DashboardCampaignSummaryProps {
   updatedAt: Date;
 }
 
+export interface DashboardCampaignSummaryDto {
+  id: string;
+  campaignId: string;
+  summary?: string | null;
+  tagLine?: string | null;
+  status: ApprovalStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /**
  * Combined entity with approval data (from repository join)
  */

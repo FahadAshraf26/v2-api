@@ -1,4 +1,4 @@
-import { Err, Result } from 'oxide.ts';
+import { Err, Ok, Result } from 'oxide.ts';
 import { inject, injectable } from 'tsyringe';
 
 import { TOKENS } from '@/config/tokens';
@@ -40,12 +40,48 @@ export class DashboardCampaignInfoRepository extends BaseRepository<
 
   protected toPersistence(
     domain: DashboardCampaignInfo
-  ): DashboardCampaignInfoModelAttributes {
-    return this.mapper.toPersistence(domain);
+  ): Record<string, unknown> {
+    return this.mapper.toPersistence(domain) as unknown as Record<
+      string,
+      unknown
+    >;
   }
 
   protected getEntityName(): string {
     return 'DashboardCampaignInfo';
+  }
+
+  /**
+   * Find dashboard campaign info by campaign slug
+   */
+  async findByCampaignSlug(
+    slug: string
+  ): Promise<Result<DashboardCampaignInfo | null, Error>> {
+    try {
+      const result = await this.findOne({
+        include: [
+          {
+            relation: 'campaign',
+            where: { slug },
+            required: true,
+          },
+        ],
+      });
+
+      if (result.isErr()) {
+        return result;
+      }
+
+      const entity = result.unwrap();
+
+      return Ok(
+        entity
+          ? this.toDomain(entity as DashboardCampaignInfoModelAttributes)
+          : null
+      );
+    } catch (error) {
+      return this.handleRepositoryError(error);
+    }
   }
 
   /**

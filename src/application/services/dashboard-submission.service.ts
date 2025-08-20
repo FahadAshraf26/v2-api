@@ -37,7 +37,7 @@ export class DashboardSubmissionService {
     campaignId: string,
     userId: string,
     entityTypes: string[]
-  ): Promise<Result<void, Error>> {
+  ): Promise<Result<{ success: boolean }, Error>> {
     try {
       this.logger.info('Submitting dashboard items for review', {
         campaignId,
@@ -99,7 +99,7 @@ export class DashboardSubmissionService {
         )
       );
 
-      return Ok(undefined);
+      return Ok({ success: true });
     } catch (error) {
       this.logger.error(
         'Error submitting dashboard items for review',

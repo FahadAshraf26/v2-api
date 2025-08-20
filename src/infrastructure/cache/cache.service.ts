@@ -1,29 +1,38 @@
+import { Err, Ok, Result } from 'oxide.ts';
 import { createClient, RedisClientType } from 'redis';
 import { inject, injectable } from 'tsyringe';
-import { Result, Ok, Err } from 'oxide.ts';
-import { config } from '@/config/app';
+
+import { ConfigService } from '@/config/config.service';
+
 import { LoggerService } from '@/infrastructure/logging/logger.service';
+
 import { RedisConfig } from '@/types/cache-service';
 
 @injectable()
 export class CacheService {
   private client: RedisClientType | null = null;
 
-  constructor(@inject(LoggerService) private readonly logger: LoggerService) {}
+  constructor(
+    @inject(LoggerService) private readonly logger: LoggerService,
+    @inject(ConfigService) private readonly configService: ConfigService
+  ) {}
 
   async connect(): Promise<Result<void, Error>> {
     try {
       const clientConfig: RedisConfig = {
         socket: {
-          host: config.REDIS_HOST,
-          port: config.REDIS_PORT,
-          connectTimeout: config.REDIS_CONNECT_TIMEOUT,
+          host: this.configService.get('REDIS_HOST') || 'localhost',
+          port: Number(this.configService.get('REDIS_PORT') || 6379),
+          connectTimeout: Number(
+            this.configService.get('REDIS_CONNECT_TIMEOUT') || 5000
+          ),
         },
-        database: config.REDIS_DB,
+        database: Number(this.configService.get('REDIS_DB') || 0),
       };
 
-      if (config.REDIS_PASSWORD) {
-        clientConfig.password = config.REDIS_PASSWORD;
+      const redisPassword = this.configService.get('REDIS_PASSWORD');
+      if (redisPassword) {
+        clientConfig.password = redisPassword;
       }
 
       this.client = createClient(clientConfig);
@@ -86,7 +95,8 @@ export class CacheService {
       }
 
       const stringValue = JSON.stringify(value);
-      const expiration = ttl ?? config.CACHE_TTL_DEFAULT;
+      const expiration =
+        ttl ?? Number(this.configService.get('CACHE_TTL_DEFAULT') || 3600);
 
       await this.client.setEx(key, expiration, stringValue);
       return Ok(undefined);

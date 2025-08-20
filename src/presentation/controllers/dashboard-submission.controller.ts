@@ -25,18 +25,14 @@ export class DashboardSubmissionController extends BaseController {
     request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> {
-    const { campaignId, userId, entityTypes } =
-      request.body as SubmitForReviewDto;
-    const result = await this.dashboardSubmissionService.submitForReview(
-      campaignId,
-      userId,
-      entityTypes
-    );
-
-    if (result.isErr()) {
-      return reply.status(400).send({ error: result.unwrapErr().message });
-    }
-
-    return this.ok(reply, { success: true });
+    await this.execute(request, reply, () => {
+      const { campaignId, userId, entityTypes } =
+        request.body as SubmitForReviewDto;
+      return this.dashboardSubmissionService.submitForReview(
+        campaignId,
+        userId,
+        entityTypes
+      );
+    });
   }
 }

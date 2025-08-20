@@ -1,9 +1,9 @@
-import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 
 import { DashboardCampaignSummaryController } from '@/presentation/controllers/dashboard-campaign-summary.controller';
 
-import { authenticateUser } from '@/shared/utils/middleware/auth.middleware';
+import { AuthMiddleware } from '@/shared/utils/middleware/auth.middleware';
 
 import {
   createDashboardCampaignSummarySchema,
@@ -13,9 +13,34 @@ import {
 
 export default async function dashboardCampaignSummaryRoutes(
   fastify: FastifyInstance,
-  options: FastifyPluginOptions
+  options: { authMiddleware: AuthMiddleware }
 ): Promise<void> {
   const controller = container.resolve(DashboardCampaignSummaryController);
+  const { authenticateUser } = options.authMiddleware;
+
+  fastify.get(
+    '/:slug',
+    {
+      preHandler: authenticateUser,
+      schema: {
+        description: 'Get dashboard campaign summary by campaign slug',
+        tags: ['Dashboard Campaign Summary'],
+        params: {
+          type: 'object',
+          properties: {
+            slug: { type: 'string' },
+          },
+          required: ['slug'],
+        },
+        response: {
+          200: successResponseSchema,
+          404: errorSchema,
+          500: errorSchema,
+        },
+      },
+    },
+    controller.findByCampaignSlug.bind(controller)
+  );
 
   fastify.post(
     '/',

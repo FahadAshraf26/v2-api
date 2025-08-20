@@ -20,7 +20,9 @@ export const getPendingCampaignsSchema = {
 export interface PendingCampaignDto {
   campaignName: string;
   campaignStage: string | null;
+  campaignId: string;
+  issuerId: string;
   submittedBy: string | null;
   submittedAt: Date | null;
-  status: string;
+  status: ApprovalStatus;
 }

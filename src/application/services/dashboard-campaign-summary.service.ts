@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Err, Ok, Result } from 'oxide.ts';
 import { inject, injectable } from 'tsyringe';
 
@@ -10,8 +9,11 @@ import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { CampaignRepository } from '@/infrastructure/repositories/campaign.repository';
 import { DashboardCampaignSummaryRepository } from '@/infrastructure/repositories/dashboard-campaign-summary.repository';
 
+import { AppError } from '@/shared/errors/app-error';
+
 import {
   CreateDashboardCampaignSummaryDto,
+  DashboardCampaignSummaryDto,
   UpdateDashboardCampaignSummaryDto,
 } from '@/types/dashboard-campaign-summary';
 
@@ -26,6 +28,74 @@ export class DashboardCampaignSummaryService {
   ) {}
 
   /**
+   * Find dashboard campaign summary by campaign slug
+   */
+  async findByCampaignSlug(
+    slug: string
+  ): Promise<Result<DashboardCampaignSummaryDto, Error>> {
+    try {
+      this.logger.info('Finding dashboard campaign summary by slug', { slug });
+
+      const result = await this.repository.findByCampaignSlug(slug);
+
+      if (result.isErr()) {
+        return Err(result.unwrapErr());
+      }
+
+      const summary = result.unwrap();
+
+      if (summary) {
+        this.logger.info(
+          'Found dashboard campaign summary in dashboard table',
+          {
+            slug,
+          }
+        );
+        return Ok(this.repository.mapper.toDTO(summary));
+      }
+
+      this.logger.info(
+        'Dashboard campaign summary not found in dashboard table, falling back to campaign table',
+        { slug }
+      );
+
+      const campaignResult = await this.campaignRepository.findOne({
+        where: { slug },
+      });
+
+      if (campaignResult.isErr()) {
+        return Err(campaignResult.unwrapErr());
+      }
+
+      const campaign = campaignResult.unwrap();
+
+      if (!campaign) {
+        return Err(new AppError(`Campaign not found for slug: ${slug}`));
+      }
+
+      this.logger.info('Found campaign in campaign table', { slug });
+
+      return Ok(
+        this.repository.mapper.toDTO(
+          campaign as unknown as DashboardCampaignSummary
+        )
+      );
+    } catch (error) {
+      this.logger.error(
+        'Error finding dashboard campaign summary by slug',
+        error as Error
+      );
+      return Err(
+        new Error(
+          `Failed to find dashboard campaign summary by slug: ${
+            (error as Error).message
+          }`
+        )
+      );
+    }
+  }
+
+  /**
    * Create or update dashboard campaign summary
    */
   async createOrUpdate(
@@ -37,7 +107,6 @@ export class DashboardCampaignSummaryService {
       });
 
       const summary = DashboardCampaignSummary.create({
-        id: (dto as any).id || randomUUID(),
         campaignId: dto.campaignId,
         summary: dto.summary || '',
         tagLine: dto.tagLine || '',
@@ -53,15 +122,17 @@ export class DashboardCampaignSummaryService {
         return Err(saveResult.unwrapErr());
       }
 
+      const savedSummary = saveResult.unwrap();
+
       this.logger.info(
         'Dashboard campaign summary created/updated successfully',
         {
-          id: saveResult.unwrap().id,
+          id: savedSummary.id,
           campaignId: dto.campaignId,
         }
       );
 
-      return Ok(saveResult.unwrap());
+      return Ok(savedSummary);
     } catch (error) {
       this.logger.error(
         'Error creating or updating dashboard campaign summary',

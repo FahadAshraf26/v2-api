@@ -37,8 +37,11 @@ export class ApprovalHistoryRepository extends BaseRepository<
 
   protected override toPersistence(
     domain: ApprovalHistory
-  ): ApprovalHistoryModelAttributes {
-    return this.mapper.toPersistence(domain);
+  ): Record<string, unknown> {
+    return this.mapper.toPersistence(domain) as unknown as Record<
+      string,
+      unknown
+    >;
   }
 
   protected override getEntityName(): string {

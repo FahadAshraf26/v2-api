@@ -8,15 +8,6 @@ import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { BaseController } from '@/presentation/controllers/base.controller';
 
 import {
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from '@/shared/errors';
-import { ErrorConverter } from '@/shared/utils/error-converter';
-import { AuthenticatedRequest } from '@/shared/utils/middleware/auth.middleware';
-
-import {
   CreateDashboardCampaignSummaryDto,
   UpdateDashboardCampaignSummaryDto,
 } from '@/types/dashboard-campaign-summary';
@@ -31,27 +22,25 @@ export class DashboardCampaignSummaryController extends BaseController {
     super(logger);
   }
 
+  async findByCampaignSlug(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<void> {
+    await this.execute(request, reply, () => {
+      const { slug } = request.params as { slug: string };
+      return this.service.findByCampaignSlug(slug);
+    });
+  }
+
   async createOrUpdate(
     request: FastifyRequest,
     reply: FastifyReply
   ): Promise<void> {
-    const result = await this.service.createOrUpdate(
-      request.body as
+    await this.execute(request, reply, () => {
+      const dto = request.body as
         | CreateDashboardCampaignSummaryDto
-        | UpdateDashboardCampaignSummaryDto
-    );
-
-    if (result.isErr()) {
-      this.logger.error(
-        'Error creating or updating dashboard campaign summary',
-        {
-          error: result.unwrapErr(),
-        }
-      );
-      reply.status(400).send({ error: result.unwrapErr().message });
-      return;
-    }
-
-    this.ok(reply, result.unwrap());
+        | UpdateDashboardCampaignSummaryDto;
+      return this.service.createOrUpdate(dto);
+    });
   }
 }

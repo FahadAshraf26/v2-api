@@ -4,6 +4,7 @@ import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/config/tokens';
 
 import { CampaignInfo } from '@/domain/campaign-info/entity/campaign-info.entity';
+import { FindOneCriteria } from '@/domain/core/repository.interface';
 
 import { CampaignInfoModelAttributes } from '@/infrastructure/database/models/campaign-info.model';
 import { EventBus } from '@/infrastructure/events/event-bus';
@@ -33,8 +34,11 @@ export class CampaignInfoRepository extends BaseRepository<
     return this.mapper.toDomain(model);
   }
 
-  protected toPersistence(domain: CampaignInfo): CampaignInfoModelAttributes {
-    return this.mapper.toPersistence(domain);
+  protected toPersistence(domain: CampaignInfo): Record<string, unknown> {
+    return this.mapper.toPersistence(domain) as unknown as Record<
+      string,
+      unknown
+    >;
   }
 
   protected getEntityName(): string {
@@ -42,7 +46,7 @@ export class CampaignInfoRepository extends BaseRepository<
   }
 
   override async findOne(
-    criteria: any
+    criteria: FindOneCriteria<CampaignInfo>
   ): Promise<Result<CampaignInfo | null, Error>> {
     return super.findOne(criteria);
   }

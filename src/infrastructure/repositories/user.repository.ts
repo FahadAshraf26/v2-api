@@ -30,8 +30,11 @@ export class UserRepository extends BaseRepository<User, UserModelAttributes> {
     return this.mapper.toDomain(model);
   }
 
-  protected override toPersistence(domain: User): UserModelAttributes {
-    return this.mapper.toPersistence(domain);
+  protected override toPersistence(domain: User): Record<string, unknown> {
+    return this.mapper.toPersistence(domain) as unknown as Record<
+      string,
+      unknown
+    >;
   }
 
   protected override getEntityName(): string {

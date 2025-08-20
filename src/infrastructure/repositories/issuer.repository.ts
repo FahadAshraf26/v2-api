@@ -2,6 +2,7 @@ import { inject, injectable } from 'tsyringe';
 
 import { TOKENS } from '@/config/tokens';
 
+import { WhereCondition } from '@/domain/core/repository.interface';
 import { Issuer } from '@/domain/issuer/entity/issuer.entity';
 
 import { IssuerModelAttributes } from '@/infrastructure/database/models/issuer.model';
@@ -28,12 +29,21 @@ export class IssuerRepository extends BaseRepository<
     super('Issuer', ormAdapter, logger, eventBus);
   }
 
+  protected override mapDomainCriteriaToPersistence(
+    criteria: Partial<Issuer> | WhereCondition<Issuer>
+  ): Record<string, unknown> {
+    return this.mapper.toPersistenceCriteria(criteria);
+  }
+
   protected toDomain(model: IssuerModelAttributes): Issuer {
     return this.mapper.toDomain(model);
   }
 
-  protected toPersistence(domain: Issuer): IssuerModelAttributes {
-    return this.mapper.toPersistence(domain);
+  protected toPersistence(domain: Issuer): Record<string, unknown> {
+    return this.mapper.toPersistence(domain) as unknown as Record<
+      string,
+      unknown
+    >;
   }
 
   protected getEntityName(): string {

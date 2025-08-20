@@ -5,7 +5,7 @@ import { TOKENS } from '@/config/tokens';
 
 import { DashboardSubmissionController } from '@/presentation/controllers/dashboard-submission.controller';
 
-import { authenticateUser } from '@/shared/utils/middleware/auth.middleware';
+import { AuthMiddleware } from '@/shared/utils/middleware/auth.middleware';
 
 import {
   errorSchema,
@@ -14,11 +14,13 @@ import {
 } from '@/types/dashboard-submission';
 
 export default async function dashboardSubmissionRoutes(
-  fastify: FastifyInstance
+  fastify: FastifyInstance,
+  options: { authMiddleware: AuthMiddleware }
 ): Promise<void> {
   const controller = container.resolve<DashboardSubmissionController>(
     TOKENS.DashboardSubmissionControllerToken
   );
+  const { authenticateUser } = options.authMiddleware;
 
   fastify.post(
     '/submit',

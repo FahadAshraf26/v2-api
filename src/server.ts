@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import Fastify, { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 
-import { config } from '@/config/app';
+import { ConfigService } from '@/config/config.service';
 import { initializeDependencyInjection } from '@/config/dependency-injection';
 import { registerEventHandlers } from '@/config/event-handler-registrar';
 import { TOKENS } from '@/config/tokens';
@@ -14,11 +14,6 @@ import { ModelRegistryService } from '@/infrastructure/database/model-registry.s
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 
 import { ErrorHandlerMiddleware } from '@/shared/utils/middleware/error-handler.middleware';
-
-if (!process.env['ENV_LOADED']) {
-  require('dotenv').config();
-  process.env['ENV_LOADED'] = 'true';
-}
 
 async function initializeServices(logger: LoggerService): Promise<{
   databaseService: DatabaseService;
@@ -61,19 +56,15 @@ async function initializeServices(logger: LoggerService): Promise<{
     const cacheResult = await cacheService.connect();
 
     if (cacheResult.isErr()) {
-      logger.warn(
-        '⚠️  Redis connection failed, continuing without cache',
-        cacheResult.unwrapErr()
-      );
       cacheService = null;
     } else {
       logger.info('✅ Redis cache connected successfully');
     }
   } catch (error) {
-    logger.warn(
-      '⚠️  Redis initialization failed, continuing without cache',
-      error as Error
-    );
+    logger.warn('⚠️  Redis initialization failed, continuing without cache', {
+      message: (error as Error).message,
+      stack: (error as Error).stack,
+    });
     cacheService = null;
   }
 
@@ -85,7 +76,10 @@ async function initializeServices(logger: LoggerService): Promise<{
   };
 }
 
-async function createApp(logger: LoggerService): Promise<FastifyInstance> {
+async function createApp(
+  logger: LoggerService,
+  config: ConfigService
+): Promise<FastifyInstance> {
   logger.info('🏗️  Building Fastify application...');
 
   const app = Fastify({
@@ -95,15 +89,25 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
     requestIdHeader: 'x-request-id',
   });
 
+  // Add a custom serializer that respects toJSON methods
+  app.setSerializerCompiler(() => {
+    return data => {
+      if (data && typeof data.toJSON === 'function') {
+        return JSON.stringify(data.toJSON());
+      }
+      return JSON.stringify(data);
+    };
+  });
+
   logger.info('🔒 Registering security plugins...');
-  const helmetOptions: any = {};
-  if (config.NODE_ENV !== 'production') {
-    helmetOptions.contentSecurityPolicy = false;
+  const helmetOptions: Record<string, unknown> = {};
+  if (config.get('NODE_ENV') !== 'production') {
+    helmetOptions['contentSecurityPolicy'] = false;
   }
   await app.register(import('@fastify/helmet'), helmetOptions);
 
   await app.register(import('@fastify/cors'), {
-    origin: config.CORS_ORIGIN,
+    origin: config.get('CORS_ORIGIN') || '*',
     credentials: false,
   });
 
@@ -121,7 +125,7 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
         description: 'Clean Architecture API with DDD',
         version: '2.0.0',
       },
-      host: `${config.HOST}:${config.PORT}`,
+      host: `${config.get('HOST')}:${config.get('PORT')}`,
       schemes: ['http', 'https'],
       consumes: ['application/json'],
       produces: ['application/json'],
@@ -215,7 +219,7 @@ async function createApp(logger: LoggerService): Promise<FastifyInstance> {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         version: '2.0.0',
-        environment: config.NODE_ENV,
+        environment: config.get('NODE_ENV'),
         uptime: process.uptime(),
         services: {
           database: await databaseService.healthCheck(),
@@ -273,28 +277,41 @@ function setupGracefulShutdown(
     gracefulShutdown('UNCAUGHT_EXCEPTION');
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', reason => {
     logger.fatal('❌ Unhandled Rejection', reason as Error);
     gracefulShutdown('UNHANDLED_REJECTION');
   });
 }
 
 async function bootstrap(): Promise<void> {
-  console.log('🚀 Starting Honeycomb API V2...');
-  console.log(`📅 Time: ${new Date().toISOString()}`);
-  console.log(`🔧 Environment: ${config.NODE_ENV}`);
-  console.log(`🔧 Node Version: ${process.version}`);
-  console.log('----------------------------------------');
+  // Create a temporary logger for the initial setup process
+  const tempLogger = new LoggerService('info', process.env['NODE_ENV']);
 
-  const logger = new LoggerService();
-  const databaseService = new DatabaseService(logger);
+  // 1. Load Configuration
+  const configService = new ConfigService(tempLogger);
+  await configService.loadConfig();
+
+  // 2. Create the main logger with the loaded configuration
+  const logger = new LoggerService(
+    configService.get('LOG_LEVEL'),
+    configService.get('NODE_ENV')
+  );
+
+  // 3. Initialize Dependency Injection
+  const databaseService = new DatabaseService(logger, configService);
+  await initializeDependencyInjection(databaseService, configService, logger);
+
+  // Now resolve other services
+  const appLogger = container.resolve(LoggerService);
 
   try {
-    // 1. Initialize Dependency Injection
-    await initializeDependencyInjection(databaseService);
+    appLogger.info('🚀 Starting Honeycomb API V2...');
+    appLogger.info(`📅 Time: ${new Date().toISOString()}`);
+    appLogger.info(`🔧 Environment: ${configService.get('NODE_ENV')}`);
+    appLogger.info(`🔧 Node Version: ${process.version}`);
+    appLogger.info('----------------------------------------');
 
-    // 2. Resolve services from the container
-    const appLogger = container.resolve(LoggerService);
+    // Resolve services from the container
     const dbService = container.resolve<DatabaseService>(
       TOKENS.DatabaseServiceToken
     );
@@ -302,16 +319,16 @@ async function bootstrap(): Promise<void> {
       TOKENS.ModelRegistryServiceToken
     );
 
-    // 3. Connect to the database and register models
+    // Connect to the database and register models
     await dbService.connect();
     await modelRegistry.registerAllModels();
     await dbService.sync();
 
-    // 4. Register event handlers
+    // Register event handlers
     registerEventHandlers();
 
     appLogger.info('🚀 Starting Honeycomb API V2');
-    appLogger.info(`Environment: ${config.NODE_ENV}`);
+    appLogger.info(`Environment: ${configService.get('NODE_ENV')}`);
     appLogger.info(`Node Version: ${process.version}`);
     appLogger.info(`Process ID: ${process.pid}`);
 
@@ -320,29 +337,41 @@ async function bootstrap(): Promise<void> {
       cacheService: null, // Simplified for this fix
     };
 
-    const app = await createApp(appLogger);
+    const app = await createApp(appLogger, configService);
 
     setupGracefulShutdown(app, services, appLogger);
 
     appLogger.info('🌐 Starting HTTP server...');
     await app.listen({
-      port: config.PORT,
-      host: config.HOST,
+      port: Number(configService.get('PORT') || 3000),
+      host: configService.get('HOST') || '0.0.0.0',
     });
 
-    console.log('----------------------------------------');
-    console.log('✅ Server started successfully!');
-    console.log('----------------------------------------');
+    appLogger.info('----------------------------------------');
+    appLogger.info('✅ Server started successfully!');
+    appLogger.info('----------------------------------------');
     logger.info('════════════════════════════════════════');
     logger.info('🎉 Honeycomb API V2 is ready!');
     logger.info('════════════════════════════════════════');
-    logger.info(`🌐 Server: http://${config.HOST}:${config.PORT}`);
-    logger.info(`📚 API Docs: http://${config.HOST}:${config.PORT}/docs`);
-    logger.info(`🏥 Health: http://${config.HOST}:${config.PORT}/health`);
+    logger.info(
+      `🌐 Server: http://${configService.get('HOST')}:${configService.get(
+        'PORT'
+      )}`
+    );
+    logger.info(
+      `📚 API Docs: http://${configService.get('HOST')}:${configService.get(
+        'PORT'
+      )}/docs`
+    );
+    logger.info(
+      `🏥 Health: http://${configService.get('HOST')}:${configService.get(
+        'PORT'
+      )}/health`
+    );
     logger.info('════════════════════════════════════════');
 
     const memoryUsage = process.memoryUsage();
-    logger.info('💾 Memory Usage:', {
+    logger.info('�� Memory Usage:', {
       rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
       heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
       heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
@@ -350,10 +379,9 @@ async function bootstrap(): Promise<void> {
     });
   } catch (error) {
     logger.error('❌ Failed to start server', error as Error);
-    console.error('----------------------------------------');
-    console.error('❌ Server startup failed!');
-    console.error('Error:', (error as Error).message);
-    console.error('----------------------------------------');
+    logger.info('----------------------------------------');
+    logger.info('❌ Server startup failed!');
+    logger.info('----------------------------------------');
     process.exit(1);
   }
 }
@@ -364,7 +392,8 @@ export { createApp, initializeServices };
 // Only run bootstrap if this file is executed directly (not imported)
 if (require.main === module) {
   bootstrap().catch(error => {
-    console.error('💥 Fatal error during bootstrap:', error);
+    const tempLogger = new LoggerService();
+    tempLogger.fatal('💥 Fatal error during bootstrap:', error);
     // Don't exit process in test environment to avoid breaking tests
     if (process.env['NODE_ENV'] !== 'test') {
       process.exit(1);

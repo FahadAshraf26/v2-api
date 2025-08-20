@@ -24,6 +24,18 @@ export interface DashboardCampaignInfoProps {
   updatedAt: Date;
 }
 
+export interface DashboardCampaignInfoDto {
+  id: string;
+  campaignId: string;
+  milestones?: string | null;
+  investorPitch?: string | null;
+  isShowPitch?: boolean | false;
+  investorPitchTitle?: string | null;
+  status: ApprovalStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /**
  * Combined entity with approval data (from repository join)
  */

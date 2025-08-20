@@ -218,4 +218,20 @@ export class DashboardSocials extends AggregateRoot<DashboardSocialsProps> {
   toObject(): DashboardSocialsProps {
     return { ...this.props };
   }
+
+  toJSON() {
+    return {
+      id: this.props.id,
+      campaignId: this.props.campaignId,
+      linkedIn: this.props.linkedIn,
+      twitter: this.props.twitter,
+      instagram: this.props.instagram,
+      facebook: this.props.facebook,
+      tiktok: this.props.tiktok,
+      yelp: this.props.yelp,
+      status: this.props.status,
+      createdAt: this.props.createdAt,
+      updatedAt: this.props.updatedAt,
+    };
+  }
 }

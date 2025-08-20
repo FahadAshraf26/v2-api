@@ -11,22 +11,7 @@ import { LoggerService } from '@/infrastructure/logging/logger.service';
 
 import { AppError } from '@/shared/errors/app-error';
 
-interface ErrorResponse {
-  error: {
-    statusCode: number; // Include status code in response
-    code: string;
-    message: string;
-    details?: any;
-    timestamp: string;
-    requestId?: string;
-  };
-}
-
-interface ValidationErrorDetail {
-  field: string;
-  message: string;
-  value?: any;
-}
+import { ResponseUtil } from '../response/response';
 
 export class ErrorHandlerMiddleware {
   private logger: LoggerService;
@@ -65,7 +50,7 @@ export class ErrorHandlerMiddleware {
     }
 
     if (error instanceof AppError) {
-      return this.handleAppError(error, reply, requestId);
+      return ResponseUtil.error(reply, error, requestId);
     }
 
     if (error instanceof DomainError) {
@@ -91,7 +76,7 @@ export class ErrorHandlerMiddleware {
     reply: FastifyReply,
     requestId: string
   ): void {
-    const validationErrors: ValidationErrorDetail[] = [];
+    const validationErrors: any[] = [];
 
     if (error.validation && Array.isArray(error.validation)) {
       error.validation.forEach((validationError: any) => {
@@ -153,51 +138,14 @@ export class ErrorHandlerMiddleware {
       });
     }
 
-    const statusCode = 400;
-    const responseObj = {
-      error: {
-        statusCode, // Include status code
-        code: 'VALIDATION_ERROR',
-        message: 'Request validation failed',
-        details: validationErrors,
-        timestamp: new Date().toISOString(),
-        requestId,
-      },
-    };
-
-    const responseString = JSON.stringify(responseObj);
-
-    reply
-      .code(statusCode)
-      .header('Content-Type', 'application/json; charset=utf-8')
-      .send(responseString);
-  }
-
-  /**
-   * Handle AppError instances
-   */
-  private handleAppError(
-    error: AppError,
-    reply: FastifyReply,
-    requestId: string
-  ): void {
-    const responseObj = {
-      error: {
-        statusCode: error.statusCode, // Include status code
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        timestamp: error.timestamp.toISOString(),
-        requestId,
-      },
-    };
-
-    const responseString = JSON.stringify(responseObj);
-
-    reply
-      .code(error.statusCode)
-      .header('Content-Type', 'application/json; charset=utf-8')
-      .send(responseString);
+    const appError = new AppError(
+      'Request validation failed',
+      400,
+      'VALIDATION_ERROR',
+      true,
+      validationErrors
+    );
+    ResponseUtil.error(reply, appError, requestId);
   }
 
   /**
@@ -208,23 +156,13 @@ export class ErrorHandlerMiddleware {
     reply: FastifyReply,
     requestId: string
   ): void {
-    const statusCode = error.statusCode;
-    const responseObj = {
-      error: {
-        statusCode, // Include status code
-        code: error.code,
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        requestId,
-      },
-    };
-
-    const responseString = JSON.stringify(responseObj);
-
-    reply
-      .code(statusCode)
-      .header('Content-Type', 'application/json; charset=utf-8')
-      .send(responseString);
+    const appError = new AppError(
+      error.message,
+      error.statusCode,
+      error.code,
+      true
+    );
+    ResponseUtil.error(reply, appError, requestId);
   }
 
   /**
@@ -235,49 +173,19 @@ export class ErrorHandlerMiddleware {
     reply: FastifyReply,
     requestId: string
   ): void {
-    const validationErrors: ValidationErrorDetail[] = error.issues.map(
-      issue => {
-        let value: any = undefined;
+    const validationErrors = error.issues.map(issue => ({
+      field: issue.path.join('.') || 'unknown',
+      message: issue.message,
+    }));
 
-        if (issue.code === 'invalid_union') {
-          value = 'Invalid union value';
-        } else if (
-          issue.code === 'invalid_type' &&
-          issue.expected === 'string'
-        ) {
-          if (issue.message.includes('expected')) {
-            value = issue.message;
-          }
-        } else if (issue.code === 'custom' && (issue as any).params?.options) {
-          value = (issue as any).params.options.join(', ');
-        }
-
-        return {
-          field: issue.path.join('.') || 'unknown',
-          message: issue.message,
-          value,
-        };
-      }
+    const appError = new AppError(
+      'Request validation failed',
+      400,
+      'VALIDATION_ERROR',
+      true,
+      validationErrors
     );
-
-    const statusCode = 400;
-    const responseObj = {
-      error: {
-        statusCode, // Include status code
-        code: 'VALIDATION_ERROR',
-        message: 'Request validation failed',
-        details: validationErrors,
-        timestamp: new Date().toISOString(),
-        requestId,
-      },
-    };
-
-    const responseString = JSON.stringify(responseObj);
-
-    reply
-      .code(statusCode)
-      .header('Content-Type', 'application/json; charset=utf-8')
-      .send(responseString);
+    ResponseUtil.error(reply, appError, requestId);
   }
 
   /**
@@ -289,43 +197,21 @@ export class ErrorHandlerMiddleware {
     requestId: string
   ): void {
     const statusCode = error.statusCode || 500;
+    const code = error.code || 'FASTIFY_ERROR';
+    const message = error.message;
 
-    if (error.code === 'FST_ERR_RATE_LIMIT') {
-      const responseObj = {
-        error: {
-          statusCode: 429, // Include status code
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: 'Too many requests',
-          timestamp: new Date().toISOString(),
-          requestId,
-        },
-      };
-
-      const responseString = JSON.stringify(responseObj);
-
-      reply
-        .code(429)
-        .header('Content-Type', 'application/json; charset=utf-8')
-        .send(responseString);
-      return;
+    if (code === 'FST_ERR_RATE_LIMIT') {
+      const appError = new AppError(
+        'Too many requests',
+        429,
+        'RATE_LIMIT_EXCEEDED',
+        true
+      );
+      return ResponseUtil.error(reply, appError, requestId);
     }
 
-    const responseObj = {
-      error: {
-        statusCode, // Include status code
-        code: error.code || 'FASTIFY_ERROR',
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        requestId,
-      },
-    };
-
-    const responseString = JSON.stringify(responseObj);
-
-    reply
-      .code(statusCode)
-      .header('Content-Type', 'application/json; charset=utf-8')
-      .send(responseString);
+    const appError = new AppError(message, statusCode, code, true);
+    ResponseUtil.error(reply, appError, requestId);
   }
 
   /**
@@ -336,31 +222,13 @@ export class ErrorHandlerMiddleware {
     reply: FastifyReply,
     requestId: string
   ): void {
-    this.logger.error('Unknown error occurred', {
-      error,
-      requestId,
-      stack: error?.stack,
-      errorType: typeof error,
-      errorString: String(error),
-    });
-
-    const statusCode = 500;
-    const responseObj = {
-      error: {
-        statusCode, // Include status code
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred',
-        timestamp: new Date().toISOString(),
-        requestId,
-      },
-    };
-
-    const responseString = JSON.stringify(responseObj);
-
-    reply
-      .code(statusCode)
-      .header('Content-Type', 'application/json; charset=utf-8')
-      .send(responseString);
+    const appError = new AppError(
+      'An unexpected error occurred',
+      500,
+      'INTERNAL_SERVER_ERROR',
+      false
+    );
+    ResponseUtil.error(reply, appError, requestId);
   }
 
   private logError(

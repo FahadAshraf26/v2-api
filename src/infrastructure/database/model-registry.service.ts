@@ -15,11 +15,28 @@ import { DashboardCampaignInfoSchema } from './models/dashboard-campaign-info.mo
 import { DashboardCampaignSummarySchema } from './models/dashboard-campaign-summary.model';
 import { DashboardSocialsSchema } from './models/dashboard-socials.model';
 import { InvestorSchema } from './models/investor.model';
+import { IssuerSchema } from './models/issuer.model';
 import { OwnerSchema } from './models/owner.model';
 import { RoughBudgetSchema } from './models/rough-budget.model';
 import { TagCategoriesSchema } from './models/tag-categories';
 import { TagSchema } from './models/tag.model';
 import { UserSchema } from './models/user.model';
+
+export type ModelSchema =
+  | typeof CampaignSchema
+  | typeof CampaignInfoSchema
+  | typeof RoughBudgetSchema
+  | typeof IssuerSchema
+  | typeof TagCategoriesSchema
+  | typeof TagSchema
+  | typeof CampaignTagSchema
+  | typeof DashboardCampaignInfoSchema
+  | typeof DashboardCampaignSummarySchema
+  | typeof DashboardSocialsSchema
+  | typeof ApprovalHistorySchema
+  | typeof UserSchema
+  | typeof InvestorSchema
+  | typeof OwnerSchema;
 
 @injectable()
 export class ModelRegistryService {
@@ -37,11 +54,12 @@ export class ModelRegistryService {
       const ormAdapter = container.resolve<IORMAdapter>(TOKENS.ORMAdapterToken);
 
       // Register all schemas
-      const schemas = [
+      const schemas: ModelSchema[] = [
         // Core schemas
         CampaignSchema,
         CampaignInfoSchema,
         RoughBudgetSchema,
+        IssuerSchema,
 
         // Tag-related schemas
         TagCategoriesSchema,
@@ -84,7 +102,7 @@ export class ModelRegistryService {
   /**
    * Register a single model schema
    */
-  registerModel(schema: any): void {
+  registerModel(schema: ModelSchema): void {
     this.logger.debug(`Registering single schema: ${schema.name}`);
     const ormAdapter = container.resolve<IORMAdapter>(TOKENS.ORMAdapterToken);
     ormAdapter.registerSchema(schema);
@@ -110,6 +128,7 @@ export class ModelRegistryService {
       'User',
       'Investor',
       'Owner',
+      'Issuer',
     ];
   }
 }

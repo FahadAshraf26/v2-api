@@ -37,14 +37,18 @@ import { DashboardReviewController } from '@/presentation/controllers/dashboard-
 import { DashboardSocialsController } from '@/presentation/controllers/dashboard-socials.controller';
 import { DashboardSubmissionController } from '@/presentation/controllers/dashboard-submission.controller';
 
+import { ConfigService } from './config.service';
 import { TOKENS } from './tokens';
 
 export const initializeDependencyInjection = async (
-  databaseService: DatabaseService
+  databaseService: DatabaseService,
+  configService: ConfigService,
+  logger: LoggerService
 ): Promise<void> => {
   // Core Services
-  container.registerSingleton(LoggerService);
+  container.register<LoggerService>(LoggerService, { useValue: logger });
   container.registerSingleton(EventBus);
+  container.register<ConfigService>(ConfigService, { useValue: configService });
 
   container.register<DatabaseService>(TOKENS.DatabaseServiceToken, {
     useValue: databaseService,

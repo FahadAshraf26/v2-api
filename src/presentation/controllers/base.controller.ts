@@ -5,6 +5,7 @@ import { LoggerService } from '@/infrastructure/logging/logger.service';
 
 import { ForbiddenError, UnauthorizedError } from '@/shared/errors';
 import { ErrorConverter } from '@/shared/utils/error-converter';
+import { ResponseUtil } from '@/shared/utils/response/response';
 
 /**
  * Base controller with built-in error handling
@@ -23,21 +24,32 @@ export abstract class BaseController {
     try {
       const result = await action();
 
-      // Handle Result pattern
       if (this.isResult(result)) {
         if (result.isErr()) {
           throw ErrorConverter.fromResult(result);
         }
+
         const data = result.unwrap();
-        return this.ok(reply, data);
+        if (data === undefined || data === null) {
+          this.noContent(reply);
+        } else if (
+          typeof data === 'object' &&
+          (data as any).success === true &&
+          Object.keys(data).length === 1
+        ) {
+          this.ok(reply, undefined as any, 'Operation successful');
+        } else {
+          this.ok(reply, data);
+        }
+        return;
       }
 
-      // Handle regular response
-      if (result !== undefined) {
-        return this.ok(reply, result);
+      if (result !== undefined && result !== null) {
+        this.ok(reply, result);
+      } else {
+        this.noContent(reply);
       }
     } catch (error) {
-      // Error will be caught by global error handler
       throw error;
     }
   }
@@ -45,26 +57,16 @@ export abstract class BaseController {
   /**
    * Standard success responses
    */
-  protected ok<T>(reply: FastifyReply, data?: T): void {
-    let payload = data;
-    if (
-      data &&
-      (data as any).isOk &&
-      typeof (data as any).unwrap === 'function'
-    ) {
-      payload = (data as any).unwrap();
-    }
-
-    // Send the raw payload directly to avoid subtle serialization issues with Fastify
-    reply.status(200).send(payload);
+  protected ok<T>(reply: FastifyReply, data: T, message = 'Success'): void {
+    ResponseUtil.success(reply, data, message);
   }
 
-  protected created<T>(reply: FastifyReply, data: T, message?: string): void {
-    reply.status(201).send({
-      success: true,
-      data,
-      message: message || 'Resource created successfully',
-    });
+  protected created<T>(
+    reply: FastifyReply,
+    data: T,
+    message = 'Resource created successfully'
+  ): void {
+    ResponseUtil.success(reply, data, message, 201);
   }
 
   protected noContent(reply: FastifyReply): void {
