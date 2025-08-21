@@ -4,9 +4,6 @@ import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/config/tokens';
 
 import { ApprovalHistory } from '@/domain/approval-history/entity/approval-history.entity';
-import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
-import { DashboardCampaignSummary } from '@/domain/dashboard-campaign-summary/entity/dashboard-campaign-summary.entity';
-import { DashboardSocials } from '@/domain/dashboard-socials/entity/dashboard-socials.entity';
 import { DashboardItemSubmittedForReviewEvent } from '@/domain/submission/events/dashboard-item-submitted-for-review.event';
 
 import { EventBus } from '@/infrastructure/events/event-bus';
@@ -14,6 +11,7 @@ import { LoggerService } from '@/infrastructure/logging/logger.service';
 import { ApprovalHistoryRepository } from '@/infrastructure/repositories/approval-history.repository';
 import { DashboardCampaignInfoRepository } from '@/infrastructure/repositories/dashboard-campaign-info.repository';
 import { DashboardCampaignSummaryRepository } from '@/infrastructure/repositories/dashboard-campaign-summary.repository';
+import { DashboardOwnersRepository } from '@/infrastructure/repositories/dashboard-owners.repository';
 import { DashboardSocialsRepository } from '@/infrastructure/repositories/dashboard-socials.repository';
 
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
@@ -27,6 +25,8 @@ export class DashboardSubmissionService {
     private readonly dashboardCampaignSummaryRepository: DashboardCampaignSummaryRepository,
     @inject(TOKENS.DashboardSocialsRepositoryToken)
     private readonly dashboardSocialsRepository: DashboardSocialsRepository,
+    @inject(DashboardOwnersRepository)
+    private readonly dashboardOwnersRepository: DashboardOwnersRepository,
     @inject(ApprovalHistoryRepository)
     private readonly approvalHistoryRepository: ApprovalHistoryRepository,
     @inject(LoggerService) private readonly logger: LoggerService,
@@ -50,10 +50,12 @@ export class DashboardSubmissionService {
         | DashboardCampaignInfoRepository
         | DashboardCampaignSummaryRepository
         | DashboardSocialsRepository
+        | DashboardOwnersRepository
       > = {
         'dashboard-campaign-info': this.dashboardCampaignInfoRepository,
         'dashboard-campaign-summary': this.dashboardCampaignSummaryRepository,
         'dashboard-socials': this.dashboardSocialsRepository,
+        'dashboard-owners': this.dashboardOwnersRepository,
       };
 
       for (const entityType of entityTypes) {
@@ -62,6 +64,7 @@ export class DashboardSubmissionService {
           return Err(new Error(`Invalid entity type: ${entityType}`));
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const findResult = await (repository as any).findOne({
           where: { campaignId },
         });
@@ -77,8 +80,10 @@ export class DashboardSubmissionService {
             entity.status === ApprovalStatus.REJECTED)
         ) {
           const newStatus = ApprovalStatus.PENDING;
-          entity.update({ status: newStatus });
-          await repository.update(entity.id as string, entity as any);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (entity as any).update({ status: newStatus });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (repository as any).update(entity.id as string, entity);
 
           const approvalHistory = ApprovalHistory.create({
             entityId: entity.id,

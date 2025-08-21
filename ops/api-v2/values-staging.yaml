@@ -1,0 +1,122 @@
+replicaCount: 1
+
+image:
+  repository: gcr.io/honeycomb-321717/honeycomb-api-dev-v2
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 1000
+  # runAsUser: 1000
+  # runAsNonRoot: true
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #     - ALL
+  # readOnlyRootFilesystem: true
+  # allowPrivilegeEscalation: false
+
+
+service:
+  type: NodePort
+  port: 8082
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  requests:
+    cpu: 400m
+    memory: 1024Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  periodSeconds: 100
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  periodSeconds: 100
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+volumes: 
+  - name: honeycomb-firebase
+    secret:
+      secretName: honeycomb-firebase-adminsdk
+  - name: honeycomb-staging-sftp-key
+    secret:
+      secretName: id-rsa-staging
+  - name: staging-storage-service-account
+    configMap:
+      name: staging-honeycomb-storage      
+
+volumeMounts: 
+  - name: honeycomb-firebase
+    mountPath: /honeycomb-api/firebase
+    readOnly: true
+  - name: honeycomb-staging-sftp-key
+    mountPath: /honeycomb-api/staging-sftp-key
+    readOnly: true
+  - mountPath: /honeycomb-api/honeycomb-staging-key.json
+    name: staging-storage-service-account
+    subPath: honeycomb-staging-key.json    
+
+nodeSelector: {}
+
+tolerations: []
+
+backendConfig:
+  spec:
+    securityPolicy:
+      name: "qa-allow-to-api"
+
+# env:
+#   NODE_ENV: development
+#   APP_NAME: Honeycomb
+#   SERVER_URL: https://api-dev.honeycombcredit.com
+#   PORT: "8082"
+#   ADMIN_PANEL_URL: http://hcc-ap.honeycombcredit.com
+#   DB_DIALECT: mysql
+#   DWOLLA_APP_ENVIRONMENT: ""
+#   DWOLLA_honeycomb_SOLUTION_ACCOUNT_ID: ""
+#   DWOLLA_BASE_URL: ""
+#   REDIS_HOST: honeycomb-api-dev-redis-master
+#   REDIS_PORT: "6379"
+#   PICTURE_SPACE_CAT: "uploads/profilePic-1615897107002-932085563_tiny.png"
+#   PICTURE_GOOD_DOGE: "uploads/profilePic-1615897035345-683432052_tiny.png"
+#   PICTURE_CHILL_CACTUS: "uploads/profilePic-1615896850591-100152857_tiny.png"   
+
+affinity: {}

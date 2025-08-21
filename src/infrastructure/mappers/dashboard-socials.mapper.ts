@@ -2,16 +2,14 @@ import { injectable } from 'tsyringe';
 
 import { DashboardSocials } from '@/domain/dashboard-socials/entity/dashboard-socials.entity';
 
-import { IssuerModelAttributes } from '@/infrastructure/database/models/issuer.model';
-
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
 import {
   DashboardSocialsDto,
   DashboardSocialsModelAttributes,
   DashboardSocialsProps,
-  DashboardSocialsWithApproval,
 } from '@/types/dashboard-socials';
+import { IssuerProps } from '@/types/issuer';
 
 @injectable()
 export class DashboardSocialsMapper {
@@ -108,8 +106,10 @@ export class DashboardSocialsMapper {
   /**
    * Convert search criteria from domain to persistence
    */
-  toPersistenceCriteria(criteria: any): Record<string, any> {
-    const persistenceCriteria: Record<string, any> = {};
+  toPersistenceCriteria(
+    criteria: Partial<DashboardSocialsProps>
+  ): Record<string, unknown> {
+    const persistenceCriteria: Record<string, unknown> = {};
 
     if (criteria['id']) {
       persistenceCriteria['id'] = criteria['id'];
@@ -163,7 +163,9 @@ export class DashboardSocialsMapper {
   /**
    * Convert search criteria from domain to persistence for business data only
    */
-  toBusinessPersistenceCriteria(criteria: any): Record<string, any> {
+  toBusinessPersistenceCriteria(
+    criteria: Partial<DashboardSocialsProps>
+  ): Record<string, unknown> {
     return this.toPersistenceCriteria(criteria);
   }
 
@@ -176,11 +178,8 @@ export class DashboardSocialsMapper {
     return this.toPersistenceUpdate(domain);
   }
 
-  toIssuerPersistence(
-    domain: DashboardSocials
-  ): Partial<IssuerModelAttributes> {
-    const { id, createdAt, updatedAt, status, campaignId, ...rest } =
-      domain.toObject();
+  toIssuerPersistence(domain: DashboardSocials): Partial<IssuerProps> {
+    const { campaignId, ...rest } = domain.toObject();
     return {
       ...rest,
       issuerId: campaignId,
@@ -190,6 +189,13 @@ export class DashboardSocialsMapper {
       facebook: rest.facebook || null,
       tiktok: rest.tiktok || null,
       yelp: rest.yelp || null,
+      issuerName: '',
+      physicalAddress: '',
+      businessType: '',
+      legalEntityType: '',
+      email: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
   }
 }

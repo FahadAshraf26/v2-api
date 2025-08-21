@@ -1,0 +1,41 @@
+# {{- range .Values.cronjobs }}
+# apiVersion: batch/v1
+# kind: CronJob
+# metadata:
+#   name: {{ .name }}
+# spec:
+#   schedule: {{ .schedule | quote }}
+#   jobTemplate:
+#     spec:
+#       template:
+#         spec:
+#           serviceAccountName: {{ include "api-v2.serviceAccountName" $ }}
+#           containers:
+#           - name: {{ .name }}
+#             image: {{ .image }}
+#             command: ["/bin/bash", "-c", {{ .command | quote }}]
+#             env:
+#               - name: SFTP_PRIVATE_KEY_PATH 
+#                 value: /sftp-key/rsa-hcc.ppk
+#             volumeMounts:
+#               - name: honeycomb-sftp
+#                 mountPath: /sftp-key
+#                 readOnly: true
+#               - mountPath: /honeycomb-api/honeycomb-production-key.json
+#                 name: production-storage-service-account
+#                 subPath: honeycomb-production-key.json            
+#             envFrom:
+#               - configMapRef:
+#                   name: {{ include "api-v2.fullname" $ }}
+#               - secretRef:
+#                   name: {{ include "api-v2.fullname" $ }}
+#           volumes:
+#           - name: honeycomb-sftp
+#             secret:
+#               secretName: id-rsa-prod
+#           - name: production-storage-service-account
+#             configMap:
+#               name: production-honeycomb-storage                       
+#           restartPolicy: OnFailure
+# ---
+# {{- end }}

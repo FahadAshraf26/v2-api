@@ -1,10 +1,9 @@
-// src/shared/utils/middleware/auth.middleware.ts
-// Fully compatible with V1 tokens and Redis structure
 import { FastifyReply, FastifyRequest } from 'fastify';
 import jwt from 'jsonwebtoken';
 import { container } from 'tsyringe';
 
-import { ConfigService } from '@/config/config.service';
+import { config } from '@/config/app';
+import { TOKENS } from '@/config/tokens';
 
 import { CacheService } from '@/infrastructure/cache/cache.service';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
@@ -97,15 +96,16 @@ interface RequestParams {
   userId?: string;
 }
 
-export function createAuthMiddleware(
-  configService: ConfigService
-): AuthMiddleware {
+export function createAuthMiddleware(): AuthMiddleware {
   const logger = container.resolve(LoggerService);
 
   const decodeJWT = async (token: string): Promise<JWTPayload | null> => {
     try {
-      const secret = configService.get('SECRET') || '';
+      const secret = config.SECRET || '';
+      logger.debug('Secret', { secret });
+      logger.debug('Token', { token });
       const decoded = jwt.verify(token, secret) as JWTPayload;
+      logger.debug('Token decoded', { decoded });
 
       logger.debug('Token decoded successfully', {
         hasUserId: !!decoded.userId,
@@ -127,14 +127,33 @@ export function createAuthMiddleware(
 
   const getTokens = async (userId: string): Promise<string[]> => {
     try {
-      if (
-        configService.get('NODE_ENV') === 'test' &&
-        !configService.get('CACHE_ENABLED')
-      ) {
+      if (config.NODE_ENV === 'test' && !config.CACHE_ENABLED) {
         return ['test-token'];
       }
 
-      const cacheService = container.resolve(CacheService);
+      const cacheService = container.resolve<CacheService>(
+        TOKENS.CacheServiceToken
+      );
+
+      const v1Key = `*activeSessions*.${userId}`;
+      const v1KeysResult = await cacheService.getKeysByPattern(v1Key);
+
+      if (v1KeysResult.isOk()) {
+        const keys = v1KeysResult.unwrap();
+        if (keys.length > 0) {
+          const valuesResult = await cacheService.getValues(keys);
+          if (valuesResult.isOk()) {
+            const values = valuesResult.unwrap();
+            const tokens = values.filter(v => v !== null) as string[];
+            if (tokens.length > 0) {
+              logger.debug('Found tokens with V1 pattern', {
+                count: tokens.length,
+              });
+              return tokens;
+            }
+          }
+        }
+      }
 
       const simpleKey = `user:${userId}:tokens`;
       const simpleResult = await cacheService.get<string[] | string>(simpleKey);
@@ -167,7 +186,7 @@ export function createAuthMiddleware(
     } catch (error) {
       logger.error('Error getting user tokens from cache', error as Error);
 
-      if (configService.get('NODE_ENV') === 'test') {
+      if (config.NODE_ENV === 'test') {
         return ['test-token'];
       }
 

@@ -4,9 +4,12 @@ import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/config/tokens';
 
 import { ApprovalHistory } from '@/domain/approval-history/entity/approval-history.entity';
+import { CampaignInfo } from '@/domain/campaign-info/entity/campaign-info.entity';
 import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
 import { DashboardCampaignSummary } from '@/domain/dashboard-campaign-summary/entity/dashboard-campaign-summary.entity';
+import { DashboardOwners } from '@/domain/dashboard-owners/entity/dashboard-owners.entity';
 import { DashboardSocials } from '@/domain/dashboard-socials/entity/dashboard-socials.entity';
+import { Owner } from '@/domain/owners/entity/owner.entity';
 
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 import type { IORMAdapter } from '@/infrastructure/persistence/orm/orm-adapter.interface';
@@ -15,27 +18,18 @@ import { CampaignInfoRepository } from '@/infrastructure/repositories/campaign-i
 import { CampaignRepository } from '@/infrastructure/repositories/campaign.repository';
 import { DashboardCampaignInfoRepository } from '@/infrastructure/repositories/dashboard-campaign-info.repository';
 import { DashboardCampaignSummaryRepository } from '@/infrastructure/repositories/dashboard-campaign-summary.repository';
+import { DashboardOwnersRepository } from '@/infrastructure/repositories/dashboard-owners.repository';
 import { DashboardSocialsRepository } from '@/infrastructure/repositories/dashboard-socials.repository';
 import { IssuerRepository } from '@/infrastructure/repositories/issuer.repository';
+import { OwnerRepository } from '@/infrastructure/repositories/owner.repository';
 
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
+import { CampaignInfoProps } from '@/types/campaign-info';
 import { ReviewSubmissionDto } from '@/types/dashboard-submission';
-
-type DashboardEntity =
-  | DashboardCampaignInfo
-  | DashboardCampaignSummary
-  | DashboardSocials;
-
-type DashboardRepository =
-  | DashboardCampaignInfoRepository
-  | DashboardCampaignSummaryRepository
-  | DashboardSocialsRepository;
 
 @injectable()
 export class DashboardReviewService {
-  private readonly repositories: Record<string, DashboardRepository>;
-
   constructor(
     @inject(TOKENS.DashboardCampaignInfoRepositoryToken)
     private readonly dashboardCampaignInfoRepository: DashboardCampaignInfoRepository,
@@ -43,6 +37,8 @@ export class DashboardReviewService {
     private readonly dashboardCampaignSummaryRepository: DashboardCampaignSummaryRepository,
     @inject(TOKENS.DashboardSocialsRepositoryToken)
     private readonly dashboardSocialsRepository: DashboardSocialsRepository,
+    @inject(DashboardOwnersRepository)
+    private readonly dashboardOwnersRepository: DashboardOwnersRepository,
     @inject(ApprovalHistoryRepository)
     private readonly approvalHistoryRepository: ApprovalHistoryRepository,
     @inject(LoggerService) private readonly logger: LoggerService,
@@ -52,14 +48,10 @@ export class DashboardReviewService {
     @inject(TOKENS.CampaignInfoRepositoryToken)
     private readonly campaignInfoRepository: CampaignInfoRepository,
     @inject(TOKENS.IssuerRepositoryToken)
-    private readonly issuerRepository: IssuerRepository
-  ) {
-    this.repositories = {
-      'dashboard-campaign-info': this.dashboardCampaignInfoRepository,
-      'dashboard-campaign-summary': this.dashboardCampaignSummaryRepository,
-      'dashboard-socials': this.dashboardSocialsRepository,
-    };
-  }
+    private readonly issuerRepository: IssuerRepository,
+    @inject(TOKENS.OwnerRepositoryToken)
+    private readonly ownerRepository: OwnerRepository
+  ) {}
 
   async reviewSubmission({
     campaignId,
@@ -82,50 +74,103 @@ export class DashboardReviewService {
           : ApprovalStatus.REJECTED;
 
       for (const entityType of entityTypes) {
-        const repository = this.repositories[entityType];
-        if (!repository) {
+        if (entityType === 'dashboard-campaign-info') {
+          const findResult = await this.dashboardCampaignInfoRepository.findOne(
+            {
+              where: { campaignId },
+            }
+          );
+          if (findResult.isErr()) return Err(findResult.unwrapErr());
+          const entity = findResult.unwrap();
+          if (entity && entity.id && entity.status === ApprovalStatus.PENDING) {
+            entity.update({ status: newStatus });
+            await this.dashboardCampaignInfoRepository.update(
+              entity.id,
+              entity
+            );
+            await this.recordApprovalHistory(
+              entity.id,
+              entityType,
+              newStatus,
+              adminId,
+              comment
+            );
+            if (newStatus === ApprovalStatus.APPROVED) {
+              await this.moveApprovedData(entity, entityType);
+            }
+          }
+        } else if (entityType === 'dashboard-campaign-summary') {
+          const findResult =
+            await this.dashboardCampaignSummaryRepository.findOne({
+              where: { campaignId },
+            });
+          if (findResult.isErr()) return Err(findResult.unwrapErr());
+          const entity = findResult.unwrap();
+          if (entity && entity.id && entity.status === ApprovalStatus.PENDING) {
+            entity.update({ status: newStatus });
+            await this.dashboardCampaignSummaryRepository.update(
+              entity.id,
+              entity
+            );
+            await this.recordApprovalHistory(
+              entity.id,
+              entityType,
+              newStatus,
+              adminId,
+              comment
+            );
+            if (newStatus === ApprovalStatus.APPROVED) {
+              await this.moveApprovedData(entity, entityType);
+            }
+          }
+        } else if (entityType === 'dashboard-socials') {
+          const findResult = await this.dashboardSocialsRepository.findOne({
+            where: { campaignId },
+          });
+          if (findResult.isErr()) return Err(findResult.unwrapErr());
+          const entity = findResult.unwrap();
+          if (entity && entity.id && entity.status === ApprovalStatus.PENDING) {
+            entity.update({ status: newStatus });
+            await this.dashboardSocialsRepository.update(entity.id, entity);
+            await this.recordApprovalHistory(
+              entity.id,
+              entityType,
+              newStatus,
+              adminId,
+              comment
+            );
+            if (newStatus === ApprovalStatus.APPROVED) {
+              await this.moveApprovedData(entity, entityType);
+            }
+          }
+        } else if (entityType === 'dashboard-owners') {
+          const findResult = await this.dashboardOwnersRepository.findMany({
+            where: { campaignId },
+          });
+          if (findResult.isErr()) return Err(findResult.unwrapErr());
+          const entities = findResult.unwrap();
+          for (const entity of entities) {
+            if (
+              entity &&
+              entity.id &&
+              entity.status === ApprovalStatus.PENDING
+            ) {
+              entity.update({ status: newStatus });
+              await this.dashboardOwnersRepository.update(entity.id, entity);
+              await this.recordApprovalHistory(
+                entity.id,
+                entityType,
+                newStatus,
+                adminId,
+                comment
+              );
+              if (newStatus === ApprovalStatus.APPROVED) {
+                await this.moveApprovedData(entity, entityType);
+              }
+            }
+          }
+        } else {
           return Err(new Error(`Invalid entity type: ${entityType}`));
-        }
-
-        const findResult = await (repository as any).findOne({
-          where: { campaignId },
-        });
-
-        if (findResult.isErr()) {
-          return Err(findResult.unwrapErr());
-        }
-
-        const entity = findResult.unwrap() as DashboardEntity | null;
-
-        if (!entity) {
-          this.logger.warn(
-            `No entity found for type ${entityType} and campaign ${campaignId}`
-          );
-          continue;
-        }
-
-        if (entity.status !== ApprovalStatus.PENDING) {
-          return Err(
-            new Error(
-              `Entity ${entityType} for campaign ${campaignId} is not in PENDING state.`
-            )
-          );
-        }
-
-        (entity as any).update({ status: newStatus });
-        await repository.update(entity.id as string, entity as any);
-
-        const approvalHistory = ApprovalHistory.create({
-          entityId: entity.id as string,
-          entityType,
-          status: newStatus,
-          userId: adminId,
-          comment: comment || null,
-        });
-        await this.approvalHistoryRepository.save(approvalHistory);
-
-        if (newStatus === ApprovalStatus.APPROVED) {
-          await this.moveApprovedData(entity, entityType);
         }
       }
 
@@ -140,8 +185,29 @@ export class DashboardReviewService {
     }
   }
 
+  private async recordApprovalHistory(
+    entityId: string,
+    entityType: string,
+    status: ApprovalStatus,
+    userId: string,
+    comment?: string
+  ): Promise<void> {
+    const approvalHistory = ApprovalHistory.create({
+      entityId,
+      entityType,
+      status,
+      userId,
+      comment: comment || null,
+    });
+    await this.approvalHistoryRepository.save(approvalHistory);
+  }
+
   private async moveApprovedData(
-    entity: DashboardEntity,
+    entity:
+      | DashboardCampaignInfo
+      | DashboardCampaignSummary
+      | DashboardSocials
+      | DashboardOwners,
     entityType: string
   ): Promise<Result<void, Error>> {
     try {
@@ -160,29 +226,38 @@ export class DashboardReviewService {
           );
 
         const existingCampaignInfo = await this.campaignInfoRepository.findOne({
-          where: { campaignId: entity.campaignId },
+          where: { campaignId: entity.campaignId } as unknown as Record<
+            string,
+            unknown
+          >,
         });
 
         if (existingCampaignInfo.isOk() && existingCampaignInfo.unwrap()) {
           await this.campaignInfoRepository.update(
             existingCampaignInfo.unwrap()!.id as string,
-            campaignInfoData as any
+            CampaignInfo.fromPersistence(campaignInfoData as CampaignInfoProps)
           );
         } else {
-          await this.campaignInfoRepository.save(campaignInfoData as any);
+          await this.campaignInfoRepository.save(
+            CampaignInfo.create(
+              campaignInfoData as Omit<
+                CampaignInfoProps,
+                'createdAt' | 'updatedAt'
+              >
+            )
+          );
         }
       } else if (
         entityType === 'dashboard-campaign-summary' &&
         entity instanceof DashboardCampaignSummary
       ) {
-        const campaignData =
-          this.dashboardCampaignSummaryRepository.mapper.toCampaignPersistence(
+        const campaign =
+          await this.dashboardCampaignSummaryRepository.mapper.toCampaign(
             entity
           );
-        await this.campaignRepository.update(
-          entity.campaignId,
-          campaignData as any
-        );
+        if (campaign) {
+          await this.campaignRepository.update(entity.campaignId, campaign);
+        }
       } else if (
         entityType === 'dashboard-socials' &&
         entity instanceof DashboardSocials
@@ -197,9 +272,23 @@ export class DashboardReviewService {
         if (campaign.isOk() && campaign.unwrap()) {
           const issuerId = campaign.unwrap()!.issuerId;
           if (issuerId) {
-            await this.issuerRepository.update(issuerId, issuerData as any);
+            const issuer = await this.issuerRepository.findById(issuerId);
+            if (issuer.isOk() && issuer.unwrap()) {
+              const existingIssuer = issuer.unwrap();
+              if (existingIssuer) {
+                existingIssuer.update(issuerData);
+                await this.issuerRepository.update(issuerId, existingIssuer);
+              }
+            }
           }
         }
+      } else if (
+        entityType === 'dashboard-owners' &&
+        entity instanceof DashboardOwners
+      ) {
+        const ownerData =
+          this.dashboardOwnersRepository.mapper.toOwnerPersistence(entity);
+        await this.ownerRepository.save(Owner.create(ownerData).unwrap());
       }
 
       return Ok(undefined);

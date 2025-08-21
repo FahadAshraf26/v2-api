@@ -52,7 +52,7 @@ dev-up: check-env ## Start development environment with docker-compose
 	@echo "${YELLOW}MySQL Credentials:${NC}"
 	@echo "  Host: localhost:3306"
 	@echo "  Database: Check DB_NAME in .env"
-	@echo "  User: Check DB_USER in .env"
+	@echo "  User: Check DB_USERNAME in .env"
 	@echo "  Password: Check DB_PASSWORD in .env"
 
 dev-down: ## Stop development environment
@@ -78,7 +78,7 @@ dev-shell: ## Open shell in development container
 dev-db-shell: ## Open MySQL shell
 	@echo "${YELLOW}Connecting to MySQL...${NC}"
 	@echo "${BLUE}Use the password from DB_PASSWORD in your .env file${NC}"
-	cd ops/docker/dev && docker-compose exec mysql mysql -u $$(grep DB_USER ../../../.env | cut -d '=' -f2) -p$$(grep DB_PASSWORD ../../../.env | cut -d '=' -f2) $$(grep DB_NAME ../../../.env | cut -d '=' -f2)
+	cd ops/docker/dev && docker-compose exec mysql mysql -u $$(grep DB_USERNAME ../../../.env | cut -d '=' -f2) -p$$(grep DB_PASSWORD ../../../.env | cut -d '=' -f2) $$(grep DB_NAME ../../../.env | cut -d '=' -f2)
 
 # Troubleshooting commands
 dev-clean-volumes: ## Clean Docker volumes (WARNING: This will delete all data!)

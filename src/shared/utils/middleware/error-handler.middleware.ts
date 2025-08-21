@@ -1,7 +1,9 @@
-// src/shared/utils/middleware/error-handler.middleware.ts
-// Updated version with statusCode in all error responses
-import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
-import { Result } from 'oxide.ts';
+import {
+  FastifyError,
+  FastifyReply,
+  FastifyRequest,
+  FastifySchemaValidationError,
+} from 'fastify';
 import { container } from 'tsyringe';
 import { ZodError } from 'zod';
 
@@ -10,8 +12,13 @@ import { DomainError } from '@/domain/errors/base-errors';
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 
 import { AppError } from '@/shared/errors/app-error';
+import { ResponseUtil } from '@/shared/utils/response/response';
 
-import { ResponseUtil } from '../response/response';
+interface ValidationError {
+  field: string;
+  message: string;
+  value?: unknown;
+}
 
 export class ErrorHandlerMiddleware {
   private logger: LoggerService;
@@ -23,111 +30,95 @@ export class ErrorHandlerMiddleware {
   /**
    * Global error handler for Fastify
    */
-  public handleError = async (
-    error: any,
+  public handleError(
+    error: Error,
     request: FastifyRequest,
     reply: FastifyReply
-  ): Promise<void> => {
-    const requestId = request.id || 'unknown';
-
-    this.logError(error, request, requestId);
-
-    if (reply.sent) {
-      return;
-    }
-
-    // Check for Fastify validation errors
-    if (
-      error?.validation ||
-      error?.validationContext ||
-      (error?.statusCode === 400 &&
-        (error?.message?.includes('required property') ||
-          error?.message?.includes('must have') ||
-          error?.message?.includes('must be'))) ||
-      error?.code === 'FST_ERR_VALIDATION'
-    ) {
-      return this.handleFastifyValidationError(error, reply, requestId);
-    }
+  ): void {
+    let appError: AppError;
 
     if (error instanceof AppError) {
-      return ResponseUtil.error(reply, error, requestId);
+      appError = error;
+    } else {
+      // For simplicity, we'll treat unknown errors as internal server errors
+      appError = new AppError(error.message, 500, 'INTERNAL_ERROR');
     }
 
-    if (error instanceof DomainError) {
-      return this.handleDomainError(error, reply, requestId);
+    if (!appError.isOperational) {
+      this.logger.error('CRITICAL ERROR:', appError);
+      // In a real-world scenario, you might want to gracefully shutdown
+      process.exit(1);
     }
 
-    if (error instanceof ZodError) {
-      return this.handleZodValidationError(error, reply, requestId);
-    }
-
-    if (this.isFastifyError(error)) {
-      return this.handleFastifyError(error as FastifyError, reply, requestId);
-    }
-
-    return this.handleUnknownError(error, reply, requestId);
-  };
+    ResponseUtil.error(reply, appError, request.id);
+  }
 
   /**
    * Handle Fastify validation errors (schema validation)
    */
   private handleFastifyValidationError(
-    error: any,
+    error: FastifyError,
     reply: FastifyReply,
-    requestId: string
+    requestId: string | undefined
   ): void {
-    const validationErrors: any[] = [];
+    const validationErrors: ValidationError[] = [];
 
     if (error.validation && Array.isArray(error.validation)) {
-      error.validation.forEach((validationError: any) => {
-        let field = 'unknown';
+      error.validation.forEach(
+        (validationError: FastifySchemaValidationError) => {
+          let field = 'unknown';
 
-        if (validationError.instancePath) {
-          field = validationError.instancePath
-            .replace(/^\//, '')
-            .replace(/\//g, '.');
-        } else if (validationError.dataPath) {
-          field = validationError.dataPath.replace(/^\./, '');
-        } else if (validationError.params?.missingProperty) {
-          field = validationError.params.missingProperty;
-        } else if (validationError.schemaPath) {
-          const schemaMatch =
-            validationError.schemaPath.match(/properties\/([^/]+)/);
-          if (schemaMatch) {
-            field = schemaMatch[1];
+          if (validationError.instancePath) {
+            field = validationError.instancePath
+              .replace(/^\//, '')
+              .replace(/\//g, '.');
           }
-        }
 
-        if (field === 'unknown' && validationError.message) {
-          const msgMatch = validationError.message.match(/property '([^']+)'/);
-          if (msgMatch) {
-            field = msgMatch[1];
+          if (
+            validationError.params['missingProperty'] &&
+            typeof validationError.params['missingProperty'] === 'string'
+          ) {
+            field = validationError.params['missingProperty'];
+          } else if (validationError.schemaPath) {
+            const schemaMatch =
+              validationError.schemaPath.match(/properties\/([^/]+)/);
+            if (schemaMatch && schemaMatch[1]) {
+              field = schemaMatch[1];
+            }
           }
+
+          if (field === 'unknown' && validationError.message) {
+            const msgMatch =
+              validationError.message.match(/property '([^']+)'/);
+            if (msgMatch && msgMatch[1]) {
+              field = msgMatch[1];
+            }
+          }
+
+          const message = validationError.message || 'Validation failed';
+
+          validationErrors.push({
+            field: field || 'body',
+            message: message,
+            value: validationError.params['allowedValues'] || undefined,
+          });
         }
-
-        const message = validationError.message || 'Validation failed';
-
-        validationErrors.push({
-          field: field || 'body',
-          message: message,
-          value: validationError.params?.allowedValues || undefined,
-        });
-      });
+      );
     } else {
       const message = error.message || 'Validation failed';
       let field = 'body';
 
       const propertyMatch = message.match(/property '([^']+)'/);
-      if (propertyMatch) {
+      if (propertyMatch && propertyMatch[1]) {
         field = propertyMatch[1];
       } else if (message.includes('body/')) {
-        const pathMatch = message.match(/body\/([^\s]+)/);
-        if (pathMatch) {
+        const pathMatch = message.match(/body\/([^/]+)/);
+        if (pathMatch && pathMatch[1]) {
           field = pathMatch[1];
         }
       } else if (message.includes(' is required')) {
         const fieldMatch = message.match(/^(\w+) is required/);
-        if (fieldMatch) {
+        if (fieldMatch && fieldMatch[1]) {
           field = fieldMatch[1];
         }
       }
@@ -154,7 +145,7 @@ export class ErrorHandlerMiddleware {
   private handleDomainError(
     error: DomainError,
     reply: FastifyReply,
-    requestId: string
+    requestId: string | undefined
   ): void {
     const appError = new AppError(
       error.message,
@@ -171,7 +162,7 @@ export class ErrorHandlerMiddleware {
   private handleZodValidationError(
     error: ZodError,
     reply: FastifyReply,
-    requestId: string
+    requestId: string | undefined
   ): void {
     const validationErrors = error.issues.map(issue => ({
       field: issue.path.join('.') || 'unknown',
@@ -194,23 +185,28 @@ export class ErrorHandlerMiddleware {
   private handleFastifyError(
     error: FastifyError,
     reply: FastifyReply,
-    requestId: string
+    requestId: string | undefined
   ): void {
-    const statusCode = error.statusCode || 500;
-    const code = error.code || 'FASTIFY_ERROR';
-    const message = error.message;
+    let appError: AppError;
 
-    if (code === 'FST_ERR_RATE_LIMIT') {
-      const appError = new AppError(
-        'Too many requests',
-        429,
-        'RATE_LIMIT_EXCEEDED',
-        true
-      );
-      return ResponseUtil.error(reply, appError, requestId);
+    switch (error.statusCode) {
+      case 429:
+        appError = new AppError(
+          'Too many requests',
+          429,
+          'RATE_LIMIT_EXCEEDED',
+          true
+        );
+        break;
+      default:
+        appError = new AppError(
+          error.message,
+          error.statusCode || 500,
+          error.code || 'FASTIFY_ERROR',
+          true
+        );
+        break;
     }
-
-    const appError = new AppError(message, statusCode, code, true);
     ResponseUtil.error(reply, appError, requestId);
   }
 
@@ -218,25 +214,24 @@ export class ErrorHandlerMiddleware {
    * Handle unknown errors
    */
   private handleUnknownError(
-    error: any,
+    error: unknown,
     reply: FastifyReply,
-    requestId: string
+    requestId: string | undefined
   ): void {
-    const appError = new AppError(
-      'An unexpected error occurred',
-      500,
-      'INTERNAL_SERVER_ERROR',
-      false
-    );
+    const unknownError =
+      error instanceof Error ? error : new Error('An unknown error occurred');
+    const appError = new AppError(unknownError.message, 500, 'INTERNAL_ERROR');
     ResponseUtil.error(reply, appError, requestId);
   }
 
   private logError(
-    error: any,
+    error: Error,
     request: FastifyRequest,
-    requestId: string
+    requestId: string | undefined
   ): void {
-    const errorContext = {
+    const logger = container.resolve<LoggerService>(LoggerService);
+
+    const logDetails: Record<string, unknown> = {
       requestId,
       method: request.method,
       url: request.url,
@@ -248,33 +243,20 @@ export class ErrorHandlerMiddleware {
       errorStack: error?.stack,
     };
 
-    const isOperational =
-      error instanceof AppError
-        ? error.isOperational
-        : error instanceof DomainError
-          ? true
-          : error?.validation || error?.validationContext
-            ? true
-            : error?.statusCode && error.statusCode < 500
-              ? true
-              : false;
+    const isOperational = error instanceof AppError && error.isOperational;
 
     if (isOperational) {
-      this.logger.warn(
-        `Operational error: ${error?.message || 'Unknown error'}`,
-        errorContext
-      );
+      logger.warn(error.message, logDetails);
     } else {
-      this.logger.error(
-        'Unexpected error occurred',
-        error instanceof Error ? error : errorContext
-      );
+      logger.error('Unhandled error', logDetails);
     }
   }
 
-  private isFastifyError(error: any): boolean {
+  private isFastifyError(error: Error): boolean {
     return (
-      error && typeof error.statusCode === 'number' && error.code !== undefined
+      'statusCode' in error &&
+      typeof error.statusCode === 'number' &&
+      'code' in error
     );
   }
 }

@@ -3,9 +3,11 @@ import { container } from 'tsyringe';
 import { CampaignService } from '@/application/services/campaign.service';
 import { DashboardCampaignInfoService } from '@/application/services/dashboard-campaign-info.service';
 import { DashboardCampaignSummaryService } from '@/application/services/dashboard-campaign-summary.service';
+import { DashboardOwnersService } from '@/application/services/dashboard-owners.service';
 import { DashboardReviewService } from '@/application/services/dashboard-review.service';
 import { DashboardSocialsService } from '@/application/services/dashboard-socials.service';
 import { DashboardSubmissionService } from '@/application/services/dashboard-submission.service';
+import { SaveDashboardChangesUseCase } from '@/application/use-cases/dashboard/save-dashboard-changes.use-case';
 
 import { CacheService } from '@/infrastructure/cache/cache.service';
 import { DatabaseService } from '@/infrastructure/database/database.service';
@@ -17,6 +19,7 @@ import { CampaignInfoMapper } from '@/infrastructure/mappers/campaign-info.mappe
 import { CampaignMapper } from '@/infrastructure/mappers/campaign.mapper';
 import { DashboardCampaignInfoMapper } from '@/infrastructure/mappers/dashboard-campaign-info.mapper';
 import { DashboardCampaignSummaryMapper } from '@/infrastructure/mappers/dashboard-campaign-summary.mapper';
+import { DashboardOwnersMapper } from '@/infrastructure/mappers/dashboard-owners.mapper';
 import { DashboardSocialsMapper } from '@/infrastructure/mappers/dashboard-socials.mapper';
 import { IssuerMapper } from '@/infrastructure/mappers/issuer.mapper';
 import { UserMapper } from '@/infrastructure/mappers/user.mapper';
@@ -26,36 +29,38 @@ import { CampaignInfoRepository } from '@/infrastructure/repositories/campaign-i
 import { CampaignRepository } from '@/infrastructure/repositories/campaign.repository';
 import { DashboardCampaignInfoRepository } from '@/infrastructure/repositories/dashboard-campaign-info.repository';
 import { DashboardCampaignSummaryRepository } from '@/infrastructure/repositories/dashboard-campaign-summary.repository';
+import { DashboardOwnersRepository } from '@/infrastructure/repositories/dashboard-owners.repository';
 import { DashboardSocialsRepository } from '@/infrastructure/repositories/dashboard-socials.repository';
 import { IssuerRepository } from '@/infrastructure/repositories/issuer.repository';
+import { OwnerRepository } from '@/infrastructure/repositories/owner.repository';
 import { UserRepository } from '@/infrastructure/repositories/user.repository';
 
 import { CampaignController } from '@/presentation/controllers/campaign.controller';
 import { DashboardCampaignInfoController } from '@/presentation/controllers/dashboard-campaign-info.controller';
 import { DashboardCampaignSummaryController } from '@/presentation/controllers/dashboard-campaign-summary.controller';
+import { DashboardOwnersController } from '@/presentation/controllers/dashboard-owners.controller';
 import { DashboardReviewController } from '@/presentation/controllers/dashboard-review.controller';
 import { DashboardSocialsController } from '@/presentation/controllers/dashboard-socials.controller';
 import { DashboardSubmissionController } from '@/presentation/controllers/dashboard-submission.controller';
+import { DashboardController } from '@/presentation/controllers/dashboard.controller';
 
-import { ConfigService } from './config.service';
 import { TOKENS } from './tokens';
 
 export const initializeDependencyInjection = async (
   databaseService: DatabaseService,
-  configService: ConfigService,
   logger: LoggerService
 ): Promise<void> => {
   // Core Services
   container.register<LoggerService>(LoggerService, { useValue: logger });
   container.registerSingleton(EventBus);
-  container.register<ConfigService>(ConfigService, { useValue: configService });
 
   container.register<DatabaseService>(TOKENS.DatabaseServiceToken, {
     useValue: databaseService,
   });
 
+  const cacheService = new CacheService(logger);
   container.register<CacheService>(TOKENS.CacheServiceToken, {
-    useClass: CacheService,
+    useValue: cacheService,
   });
 
   container.registerSingleton(TOKENS.ORMAdapterToken, SequelizeAdapter);
@@ -78,6 +83,7 @@ export const initializeDependencyInjection = async (
     TOKENS.DashboardSocialsMapperToken,
     DashboardSocialsMapper
   );
+  container.registerSingleton(DashboardOwnersMapper);
   container.registerSingleton(ApprovalHistoryMapper);
   container.registerSingleton(CampaignInfoMapper);
   container.registerSingleton(IssuerMapper);
@@ -96,6 +102,7 @@ export const initializeDependencyInjection = async (
     TOKENS.DashboardSocialsRepositoryToken,
     DashboardSocialsRepository
   );
+  container.registerSingleton(DashboardOwnersRepository);
   container.registerSingleton(ApprovalHistoryRepository);
   container.registerSingleton(
     TOKENS.CampaignRepositoryToken,
@@ -107,6 +114,7 @@ export const initializeDependencyInjection = async (
   );
   container.registerSingleton(TOKENS.IssuerRepositoryToken, IssuerRepository);
   container.registerSingleton(TOKENS.UserRepositoryToken, UserRepository);
+  container.registerSingleton(TOKENS.OwnerRepositoryToken, OwnerRepository);
 
   // Services
   container.registerSingleton(DashboardCampaignInfoService);
@@ -115,6 +123,10 @@ export const initializeDependencyInjection = async (
   container.registerSingleton(DashboardSubmissionService);
   container.registerSingleton(DashboardReviewService);
   container.registerSingleton(CampaignService);
+  container.registerSingleton(DashboardOwnersService);
+
+  // Use Cases
+  container.registerSingleton(SaveDashboardChangesUseCase);
 
   // Controllers
   container.registerSingleton(
@@ -133,6 +145,7 @@ export const initializeDependencyInjection = async (
     TOKENS.DashboardSubmissionControllerToken,
     DashboardSubmissionController
   );
+  container.registerSingleton(DashboardOwnersController);
   container.registerSingleton(
     TOKENS.DashboardReviewControllerToken,
     DashboardReviewController
@@ -141,4 +154,5 @@ export const initializeDependencyInjection = async (
     TOKENS.CampaignControllerToken,
     CampaignController
   );
+  container.registerSingleton(DashboardController);
 };

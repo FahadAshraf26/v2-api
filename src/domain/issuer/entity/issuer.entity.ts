@@ -29,4 +29,9 @@ export class Issuer extends Entity<IssuerProps> {
   toObject(): IssuerProps {
     return this.props;
   }
+
+  update(updates: Partial<IssuerProps>): void {
+    this.props = { ...this.props, ...updates };
+    this.props.updatedAt = new Date();
+  }
 }

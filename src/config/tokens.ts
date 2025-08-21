@@ -20,6 +20,7 @@ export const TOKENS = {
   ),
   IssuerRepositoryToken: Symbol.for('IssuerRepositoryToken'),
   UserRepositoryToken: Symbol.for('UserRepositoryToken'),
+  OwnerRepositoryToken: Symbol.for('OwnerRepositoryToken'),
 
   // Mappers
   CampaignMapperToken: Symbol.for('CampaignMapperToken'),

@@ -1,9 +1,11 @@
 import 'reflect-metadata';
 
+import { config as configDotenv } from 'dotenv';
+
 import Fastify, { FastifyInstance } from 'fastify';
 import { container } from 'tsyringe';
 
-import { ConfigService } from '@/config/config.service';
+import { config } from '@/config/app';
 import { initializeDependencyInjection } from '@/config/dependency-injection';
 import { registerEventHandlers } from '@/config/event-handler-registrar';
 import { TOKENS } from '@/config/tokens';
@@ -14,6 +16,11 @@ import { ModelRegistryService } from '@/infrastructure/database/model-registry.s
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 
 import { ErrorHandlerMiddleware } from '@/shared/utils/middleware/error-handler.middleware';
+
+if (!process.env['ENV_LOADED']) {
+  configDotenv();
+  process.env['ENV_LOADED'] = 'true';
+}
 
 async function initializeServices(logger: LoggerService): Promise<{
   databaseService: DatabaseService;
@@ -56,15 +63,19 @@ async function initializeServices(logger: LoggerService): Promise<{
     const cacheResult = await cacheService.connect();
 
     if (cacheResult.isErr()) {
+      logger.warn(
+        '⚠️  Redis connection failed, continuing without cache',
+        cacheResult.unwrapErr() as unknown as Record<string, unknown>
+      );
       cacheService = null;
     } else {
       logger.info('✅ Redis cache connected successfully');
     }
   } catch (error) {
-    logger.warn('⚠️  Redis initialization failed, continuing without cache', {
-      message: (error as Error).message,
-      stack: (error as Error).stack,
-    });
+    logger.warn(
+      '⚠️  Redis initialization failed, continuing without cache',
+      error as unknown as Record<string, unknown>
+    );
     cacheService = null;
   }
 
@@ -76,10 +87,7 @@ async function initializeServices(logger: LoggerService): Promise<{
   };
 }
 
-async function createApp(
-  logger: LoggerService,
-  config: ConfigService
-): Promise<FastifyInstance> {
+async function createApp(logger: LoggerService): Promise<FastifyInstance> {
   logger.info('🏗️  Building Fastify application...');
 
   const app = Fastify({
@@ -101,13 +109,13 @@ async function createApp(
 
   logger.info('🔒 Registering security plugins...');
   const helmetOptions: Record<string, unknown> = {};
-  if (config.get('NODE_ENV') !== 'production') {
+  if (config.NODE_ENV !== 'production') {
     helmetOptions['contentSecurityPolicy'] = false;
   }
   await app.register(import('@fastify/helmet'), helmetOptions);
 
   await app.register(import('@fastify/cors'), {
-    origin: config.get('CORS_ORIGIN') || '*',
+    origin: config.CORS_ORIGIN,
     credentials: false,
   });
 
@@ -125,7 +133,7 @@ async function createApp(
         description: 'Clean Architecture API with DDD',
         version: '2.0.0',
       },
-      host: `${config.get('HOST')}:${config.get('PORT')}`,
+      host: `${config.HOST}:${config.PORT}`,
       schemes: ['http', 'https'],
       consumes: ['application/json'],
       produces: ['application/json'],
@@ -219,7 +227,7 @@ async function createApp(
         status: 'healthy',
         timestamp: new Date().toISOString(),
         version: '2.0.0',
-        environment: config.get('NODE_ENV'),
+        environment: config.NODE_ENV,
         uptime: process.uptime(),
         services: {
           database: await databaseService.healthCheck(),
@@ -284,94 +292,59 @@ function setupGracefulShutdown(
 }
 
 async function bootstrap(): Promise<void> {
-  // Create a temporary logger for the initial setup process
-  const tempLogger = new LoggerService('info', process.env['NODE_ENV']);
+  const logger = new LoggerService();
 
-  // 1. Load Configuration
-  const configService = new ConfigService(tempLogger);
-  await configService.loadConfig();
+  logger.info('🚀 Starting Honeycomb API V2...');
+  logger.info(`📅 Time: ${new Date().toISOString()}`);
+  logger.info(`🔧 Environment: ${config.NODE_ENV}`);
+  logger.info(`🔧 Node Version: ${process.version}`);
+  logger.info('----------------------------------------');
 
-  // 2. Create the main logger with the loaded configuration
-  const logger = new LoggerService(
-    configService.get('LOG_LEVEL'),
-    configService.get('NODE_ENV')
-  );
-
-  // 3. Initialize Dependency Injection
-  const databaseService = new DatabaseService(logger, configService);
-  await initializeDependencyInjection(databaseService, configService, logger);
-
-  // Now resolve other services
-  const appLogger = container.resolve(LoggerService);
+  const databaseService = new DatabaseService(logger);
 
   try {
-    appLogger.info('🚀 Starting Honeycomb API V2...');
-    appLogger.info(`📅 Time: ${new Date().toISOString()}`);
-    appLogger.info(`🔧 Environment: ${configService.get('NODE_ENV')}`);
-    appLogger.info(`🔧 Node Version: ${process.version}`);
-    appLogger.info('----------------------------------------');
+    // 1. Initialize Dependency Injection
+    await initializeDependencyInjection(databaseService, logger);
 
-    // Resolve services from the container
-    const dbService = container.resolve<DatabaseService>(
-      TOKENS.DatabaseServiceToken
-    );
-    const modelRegistry = container.resolve<ModelRegistryService>(
-      TOKENS.ModelRegistryServiceToken
-    );
-
-    // Connect to the database and register models
-    await dbService.connect();
-    await modelRegistry.registerAllModels();
-    await dbService.sync();
-
-    // Register event handlers
-    registerEventHandlers();
+    // 2. Resolve logger from the container
+    const appLogger = container.resolve(LoggerService);
 
     appLogger.info('🚀 Starting Honeycomb API V2');
-    appLogger.info(`Environment: ${configService.get('NODE_ENV')}`);
+    appLogger.info(`Environment: ${config.NODE_ENV}`);
     appLogger.info(`Node Version: ${process.version}`);
     appLogger.info(`Process ID: ${process.pid}`);
 
-    const services = {
-      databaseService: dbService,
-      cacheService: null, // Simplified for this fix
-    };
+    // 3. Initialize services (DB, Cache)
+    const services = await initializeServices(appLogger);
 
-    const app = await createApp(appLogger, configService);
+    // 4. Register event handlers
+    registerEventHandlers();
 
+    // 5. Create Fastify app
+    const app = await createApp(appLogger);
+
+    // 6. Setup graceful shutdown
     setupGracefulShutdown(app, services, appLogger);
 
     appLogger.info('🌐 Starting HTTP server...');
     await app.listen({
-      port: Number(configService.get('PORT') || 3000),
-      host: configService.get('HOST') || '0.0.0.0',
+      port: config.PORT,
+      host: config.HOST,
     });
 
     appLogger.info('----------------------------------------');
     appLogger.info('✅ Server started successfully!');
     appLogger.info('----------------------------------------');
-    logger.info('════════════════════════════════════════');
-    logger.info('🎉 Honeycomb API V2 is ready!');
-    logger.info('════════════════════════════════════════');
-    logger.info(
-      `🌐 Server: http://${configService.get('HOST')}:${configService.get(
-        'PORT'
-      )}`
-    );
-    logger.info(
-      `📚 API Docs: http://${configService.get('HOST')}:${configService.get(
-        'PORT'
-      )}/docs`
-    );
-    logger.info(
-      `🏥 Health: http://${configService.get('HOST')}:${configService.get(
-        'PORT'
-      )}/health`
-    );
-    logger.info('════════════════════════════════════════');
+    appLogger.info('════════════════════════════════════════');
+    appLogger.info('🎉 Honeycomb API V2 is ready!');
+    appLogger.info('════════════════════════════════════════');
+    appLogger.info(`🌐 Server: http://${config.HOST}:${config.PORT}`);
+    appLogger.info(`📚 API Docs: http://${config.HOST}:${config.PORT}/docs`);
+    appLogger.info(`🏥 Health: http://${config.HOST}:${config.PORT}/health`);
+    appLogger.info('════════════════════════════════════════');
 
     const memoryUsage = process.memoryUsage();
-    logger.info('�� Memory Usage:', {
+    appLogger.info('💾 Memory Usage:', {
       rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
       heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
       heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
@@ -379,9 +352,6 @@ async function bootstrap(): Promise<void> {
     });
   } catch (error) {
     logger.error('❌ Failed to start server', error as Error);
-    logger.info('----------------------------------------');
-    logger.info('❌ Server startup failed!');
-    logger.info('----------------------------------------');
     process.exit(1);
   }
 }
@@ -392,8 +362,8 @@ export { createApp, initializeServices };
 // Only run bootstrap if this file is executed directly (not imported)
 if (require.main === module) {
   bootstrap().catch(error => {
-    const tempLogger = new LoggerService();
-    tempLogger.fatal('💥 Fatal error during bootstrap:', error);
+    const logger = new LoggerService();
+    logger.fatal('Fatal error during bootstrap', error as Error);
     // Don't exit process in test environment to avoid breaking tests
     if (process.env['NODE_ENV'] !== 'test') {
       process.exit(1);

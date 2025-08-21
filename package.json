@@ -22,9 +22,7 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",
     "prepare": "husky",
-    "pre-commit": "lint-staged",
-    "db:migrate": "tsx src/infrastructure/database/migrations/runner.ts",
-    "db:seed": "tsx src/infrastructure/database/seeders/runner.ts"
+    "pre-commit": "lint-staged"
   },
   "keywords": [],
   "author": "",
@@ -36,8 +34,10 @@
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/swagger": "^9.5.1",
     "@fastify/swagger-ui": "^5.2.3",
+    "@google-cloud/secret-manager": "^6.1.0",
     "@slack/web-api": "^7.9.3",
     "dotenv": "^17.2.1",
+    "esbuild": "^0.25.9",
     "fastify": "^5.4.0",
     "form-data": "^4.0.4",
     "jsonwebtoken": "^9.0.2",
@@ -58,12 +58,12 @@
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.2.0",
-    "@typescript-eslint/eslint-plugin": "^8.17.0",
-    "@typescript-eslint/parser": "^8.17.0",
+    "@typescript-eslint/eslint-plugin": "6",
+    "@typescript-eslint/parser": "6",
     "@vitest/ui": "^3.2.4",
     "commitizen": "^4.3.1",
     "cz-conventional-changelog": "^3.3.0",
-    "eslint": "^9.18.0",
+    "eslint": "8",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.1",
     "husky": "^9.1.7",
@@ -93,6 +93,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "protobufjs",
       "sqlite3"
     ]
   }

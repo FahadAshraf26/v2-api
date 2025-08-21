@@ -2,7 +2,7 @@ import { Block, KnownBlock, WebClient } from '@slack/web-api';
 import { Err, Ok, Result } from 'oxide.ts';
 import { inject, injectable } from 'tsyringe';
 
-import { ConfigService } from '@/config/config.service';
+import { config } from '@/config/app';
 
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 
@@ -17,14 +17,9 @@ export class SlackService {
   private client: WebClient;
   private submissionChannel: string;
 
-  constructor(
-    @inject(LoggerService) private readonly logger: LoggerService,
-    @inject(ConfigService) private readonly configService: ConfigService
-  ) {
-    const token = this.configService.get('SLACK_TOKEN');
-    this.submissionChannel =
-      this.configService.get('SLACK_SUBMISSION_CHANNEL') ||
-      '#dashboard-submissions';
+  constructor(@inject(LoggerService) private readonly logger: LoggerService) {
+    const token = config.SLACK_TOKEN;
+    this.submissionChannel = config.SLACK_SUBMISSION_CHANNEL;
 
     if (!token) {
       throw new Error('SLACK_BOT_TOKEN environment variable is required');

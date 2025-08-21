@@ -1,9 +1,6 @@
-import { randomUUID } from 'crypto';
 import { injectable } from 'tsyringe';
 
 import { DashboardCampaignInfo } from '@/domain/dashboard-campaign-info/entity/dashboard-campaign-info.entity';
-
-import { CampaignInfoModelAttributes } from '@/infrastructure/database/models/campaign-info.model';
 
 import { ApprovalStatus } from '@/shared/enums/approval-status.enums';
 
@@ -70,19 +67,15 @@ export class DashboardCampaignInfoMapper {
   }
 
   toBusinessPersistenceCriteria(
-    domainCriteria: Record<string, any>
-  ): Record<string, any> {
+    domainCriteria: Record<string, unknown>
+  ): Record<string, unknown> {
     return domainCriteria;
   }
 
   toCampaignInfoPersistence(
     domain: DashboardCampaignInfo
-  ): Partial<CampaignInfoModelAttributes> {
+  ): Partial<DashboardCampaignInfoModelAttributes> {
     const {
-      id,
-      createdAt,
-      updatedAt,
-      status,
       milestones,
       investorPitch,
       isShowPitch,
@@ -91,7 +84,7 @@ export class DashboardCampaignInfoMapper {
     } = domain.toObject();
     return {
       ...rest,
-      campaignInfoId: randomUUID(),
+      campaignId: domain.campaignId,
       milestones: milestones || '',
       investorPitch: investorPitch || '',
       isShowPitch: isShowPitch || false,

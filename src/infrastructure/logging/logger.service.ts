@@ -1,14 +1,16 @@
 import pino, { Logger } from 'pino';
 import { injectable } from 'tsyringe';
 
+import { config } from '@/config/app';
+
 @injectable()
 export class LoggerService {
   private logger: Logger;
 
-  constructor(logLevel: string = 'info', nodeEnv?: string) {
+  constructor() {
     this.logger = pino({
-      level: logLevel,
-      ...(nodeEnv === 'local' && {
+      level: config.LOG_LEVEL,
+      ...(config.NODE_ENV === 'development' && {
         transport: {
           target: 'pino-pretty',
           options: {
@@ -25,7 +27,7 @@ export class LoggerService {
     this.logger.info(meta, message);
   }
 
-  error(message: string, error?: unknown): void {
+  error(message: string, error?: Error | Record<string, unknown>): void {
     if (error instanceof Error) {
       this.logger.error(
         {

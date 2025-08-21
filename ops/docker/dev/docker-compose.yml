@@ -28,8 +28,8 @@ services:
         condition: service_started
     networks:
       - honeycomb-network
-    # Override the CMD to skip wait script
-    command: ['sh', '-c', 'sleep 15 && pnpm run dev']
+    # Run install and then start the dev server
+    command: ['sh', '-c', 'pnpm install && pnpm run dev']
     restart: on-failure:10
 
   # MySQL Database
@@ -42,7 +42,7 @@ services:
       # Use root password from env or default
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-honeycomb_dev_password}
       MYSQL_DATABASE: ${DB_NAME:-honeycomb_v2_dev}
-      MYSQL_USER: ${DB_USER:-honeycomb}
+      MYSQL_USER: ${DB_USERNAME:-honeycomb}
       MYSQL_PASSWORD: ${DB_PASSWORD:-honeycomb_dev_password}
     volumes:
       - mysql_data:/var/lib/mysql

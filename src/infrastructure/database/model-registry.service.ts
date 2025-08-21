@@ -13,6 +13,7 @@ import { CampaignSchema } from './models/campaign.model';
 // Import all model schemas
 import { DashboardCampaignInfoSchema } from './models/dashboard-campaign-info.model';
 import { DashboardCampaignSummarySchema } from './models/dashboard-campaign-summary.model';
+import { DashboardOwnersSchema } from './models/dashboard-owners.model';
 import { DashboardSocialsSchema } from './models/dashboard-socials.model';
 import { InvestorSchema } from './models/investor.model';
 import { IssuerSchema } from './models/issuer.model';
@@ -36,7 +37,8 @@ export type ModelSchema =
   | typeof ApprovalHistorySchema
   | typeof UserSchema
   | typeof InvestorSchema
-  | typeof OwnerSchema;
+  | typeof OwnerSchema
+  | typeof DashboardOwnersSchema;
 
 @injectable()
 export class ModelRegistryService {
@@ -70,6 +72,7 @@ export class ModelRegistryService {
         DashboardCampaignInfoSchema,
         DashboardCampaignSummarySchema,
         DashboardSocialsSchema,
+        DashboardOwnersSchema,
         ApprovalHistorySchema,
         UserSchema,
         InvestorSchema,
@@ -129,6 +132,7 @@ export class ModelRegistryService {
       'Investor',
       'Owner',
       'Issuer',
+      'DashboardOwners',
     ];
   }
 }

@@ -1,72 +1,30 @@
-FROM node:22-alpine AS base
+# Use the official Node.js Alpine image
+FROM node:22-alpine
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
+# Set working directory
 WORKDIR /app
 
-# Install dependencies for better compatibility
-# python3, make, g++ are needed for node-gyp to compile native modules
-# netcat for checking connections
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    netcat-openbsd
-
 # Copy package files first for better layer caching
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 
-# Install all dependencies (including devDependencies for development)
-RUN pnpm install --frozen-lockfile
+# Enable pnpm (corepack is already enabled in Node.js 22)
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy the rest of the application
+# Install all dependencies (including dev dependencies)
+RUN pnpm install
+
+# Copy source code
 COPY . .
 
-# Create a simple wait script using netcat
-RUN cat > /wait-for-mysql.sh <<'EOF'
-#!/bin/sh
-set -e
+# Copy staging environment file if it exists (for production builds)
+RUN if [ -f .env.staging ]; then cp .env.staging .env; fi
 
-host="$1"
-shift
-cmd="$@"
-
-echo "Waiting for MySQL at $host:3306..."
-
-# Wait up to 60 seconds for MySQL to be ready
-attempts=0
-max_attempts=60
-
-while [ $attempts -lt $max_attempts ]; do
-  attempts=$((attempts + 1))
-
-  if nc -z -w1 "$host" 3306 2>/dev/null; then
-    echo "MySQL is ready!"
-    echo "Waiting 5 more seconds for full initialization..."
-    sleep 5
-    break
-  fi
-
-  echo "Waiting for MySQL... ($attempts/$max_attempts)"
-  sleep 1
-done
-
-if [ $attempts -eq $max_attempts ]; then
-  echo "ERROR: MySQL failed to start after $max_attempts seconds"
-  exit 1
-fi
-
-echo "Starting application..."
-exec $cmd
-EOF
-
-RUN chmod +x /wait-for-mysql.sh
-
-# Expose port
+# Expose the port
 EXPOSE 8082
 
-# Set environment
-ENV NODE_ENV=development
+# Set Node.js options for performance
+ENV NODE_OPTIONS="--max-old-space-size=2048 --enable-source-maps"
 
-# Wait for database then start the app
-CMD ["/wait-for-mysql.sh", "mysql", "pnpm", "run", "dev"]
+
+# Start in development mode with hot reloading
+CMD ["pnpm", "run", "dev"]

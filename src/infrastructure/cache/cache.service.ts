@@ -2,7 +2,7 @@ import { Err, Ok, Result } from 'oxide.ts';
 import { createClient, RedisClientType } from 'redis';
 import { inject, injectable } from 'tsyringe';
 
-import { ConfigService } from '@/config/config.service';
+import { config } from '@/config/app';
 
 import { LoggerService } from '@/infrastructure/logging/logger.service';
 
@@ -12,27 +12,21 @@ import { RedisConfig } from '@/types/cache-service';
 export class CacheService {
   private client: RedisClientType | null = null;
 
-  constructor(
-    @inject(LoggerService) private readonly logger: LoggerService,
-    @inject(ConfigService) private readonly configService: ConfigService
-  ) {}
+  constructor(@inject(LoggerService) private readonly logger: LoggerService) {}
 
   async connect(): Promise<Result<void, Error>> {
     try {
       const clientConfig: RedisConfig = {
         socket: {
-          host: this.configService.get('REDIS_HOST') || 'localhost',
-          port: Number(this.configService.get('REDIS_PORT') || 6379),
-          connectTimeout: Number(
-            this.configService.get('REDIS_CONNECT_TIMEOUT') || 5000
-          ),
+          host: config.REDIS_HOST,
+          port: config.REDIS_PORT,
+          connectTimeout: config.REDIS_CONNECT_TIMEOUT,
         },
-        database: Number(this.configService.get('REDIS_DB') || 0),
+        database: config.REDIS_DB,
       };
 
-      const redisPassword = this.configService.get('REDIS_PASSWORD');
-      if (redisPassword) {
-        clientConfig.password = redisPassword;
+      if (config.REDIS_PASSWORD) {
+        clientConfig.password = config.REDIS_PASSWORD;
       }
 
       this.client = createClient(clientConfig);
@@ -95,8 +89,7 @@ export class CacheService {
       }
 
       const stringValue = JSON.stringify(value);
-      const expiration =
-        ttl ?? Number(this.configService.get('CACHE_TTL_DEFAULT') || 3600);
+      const expiration = ttl ?? config.CACHE_TTL_DEFAULT;
 
       await this.client.setEx(key, expiration, stringValue);
       return Ok(undefined);
@@ -139,6 +132,34 @@ export class CacheService {
 
       await this.client.flushDb();
       return Ok(undefined);
+    } catch (error) {
+      return Err(error as Error);
+    }
+  }
+
+  async getKeysByPattern(pattern: string): Promise<Result<string[], Error>> {
+    try {
+      if (!this.client) {
+        return Err(new Error('Cache not connected'));
+      }
+
+      const keys = await this.client.keys(pattern);
+      return Ok(keys);
+    } catch (error) {
+      return Err(error as Error);
+    }
+  }
+
+  async getValues(keys: string[]): Promise<Result<(string | null)[], Error>> {
+    try {
+      if (!this.client) {
+        return Err(new Error('Cache not connected'));
+      }
+      if (keys.length === 0) {
+        return Ok([]);
+      }
+      const values = await this.client.mGet(keys);
+      return Ok(values);
     } catch (error) {
       return Err(error as Error);
     }

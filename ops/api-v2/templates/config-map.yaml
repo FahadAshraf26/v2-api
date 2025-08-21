@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "api-v2.fullname" . }}
+  labels:
+    {{- include "api-v2.labels" . | nindent 4 }}
+{{- if .Values.env }}
+data:
+  {{- toYaml .Values.env | nindent 2 }}
+{{- end }}
